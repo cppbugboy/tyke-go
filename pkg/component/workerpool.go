@@ -134,11 +134,18 @@ func (p *WorkerPool) Stop(waitForTasks bool) {
 		p.mu.Lock()
 		p.stopped = true
 		p.mu.Unlock()
-		if waitForTasks {
-			close(p.taskCh)
-		} else {
-			close(p.taskCh)
+		if !waitForTasks {
+			// 清空 channel 中的待处理任务
+			for {
+				select {
+				case <-p.taskCh:
+				default:
+					goto done
+				}
+			}
 		}
+	done:
+		close(p.taskCh)
 		p.wg.Wait()
 	})
 }

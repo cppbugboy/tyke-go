@@ -2,8 +2,6 @@ package core
 
 import (
 	"sync"
-
-	"github.com/tyke/tyke/pkg/common"
 )
 
 type RequestHandlerFunc func(req *TykeRequest, resp *TykeResponse)
@@ -191,8 +189,4 @@ func (g *ResponseRouterGroup) findRoute(path string) *ResponseRouteEntry {
 		}
 	}
 	return nil
-}
-
-func init() {
-	_ = common.ProtocolMagic
 }

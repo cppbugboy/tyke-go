@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package core
+package common
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ type TykeLog struct {
 
 var (
 	// globalLog 全局日志实例
-	globalLog     *TykeLog
+	globalLog *TykeLog
 	// globalLogOnce 确保日志只初始化一次
 	globalLogOnce sync.Once
 )

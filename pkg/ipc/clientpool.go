@@ -7,14 +7,14 @@ import (
 )
 
 type IpcClientPool struct {
-	serverName       string
-	maxConns         int
-	idleTimeout      uint32
-	connTimeout      uint32
-	rwTimeout        uint32
-	mu               sync.Mutex
-	idleConns        []*IpcConnection
-	activeCount      int
+	serverName  string
+	maxConns    int
+	idleTimeout uint32
+	connTimeout uint32
+	rwTimeout   uint32
+	mu          sync.Mutex
+	idleConns   []*IpcConnection
+	activeCount int
 }
 
 func NewIpcClientPool(serverName string, maxConns int, idleTimeout, connTimeout, rwTimeout uint32) *IpcClientPool {
@@ -68,7 +68,7 @@ func (p *IpcClientPool) acquire() (*IpcConnection, error) {
 	if err := conn.Connect(p.serverName, p.connTimeout, p.rwTimeout); err != nil {
 		p.mu.Lock()
 		p.activeCount--
-		p.mu.Unlock()
+		defer p.mu.Unlock()
 		return nil, err
 	}
 	return conn, nil

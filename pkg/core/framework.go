@@ -58,9 +58,9 @@ func App() *Framework {
 	frameworkOnce.Do(func() {
 		framework = &Framework{
 			threadPoolCount: common.DefaultWorkerPoolSize,
-			logLevel:       "info",
-			logFileSizeMB:  10,
-			logFileCount:   5,
+			logLevel:        "info",
+			logFileSizeMB:   10,
+			logFileCount:    5,
 		}
 	})
 	return framework
@@ -126,12 +126,12 @@ func (f *Framework) Start(listenUUID string) error {
 	}
 
 	if f.logPath != "" {
-		if err := InitLog(f.logPath, f.logLevel, f.logFileSizeMB, f.logFileCount); err != nil {
+		if err := common.InitLog(f.logPath, f.logLevel, f.logFileSizeMB, f.logFileCount); err != nil {
 			return fmt.Errorf("log init failed: %w", err)
 		}
 	}
 
-	LogInfo("Tyke framework starting, listen_uuid=%s", listenUUID)
+	common.LogInfo("Tyke framework starting, listen_uuid=%s", listenUUID)
 
 	component.InitWorkerPool(f.threadPoolCount)
 
@@ -157,7 +157,7 @@ func (f *Framework) Start(listenUUID string) error {
 	}
 
 	f.started = true
-	LogInfo("Tyke framework started successfully")
+	common.LogInfo("Tyke framework started successfully")
 	return nil
 }
 
@@ -194,7 +194,7 @@ func (f *Framework) Stop() {
 		return
 	}
 
-	LogInfo("Tyke framework stopping")
+	common.LogInfo("Tyke framework stopping")
 
 	if f.ipcServer != nil {
 		f.ipcServer.Stop()
@@ -203,5 +203,5 @@ func (f *Framework) Stop() {
 	component.StopWorkerPool(true)
 
 	f.started = false
-	LogInfo("Tyke framework stopped")
+	common.LogInfo("Tyke framework stopped")
 }

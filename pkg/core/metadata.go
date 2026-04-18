@@ -17,7 +17,7 @@ type RequestMetadata struct {
 	// Module 模块名称，用于模块级别的路由和过滤
 	Module string `json:"module"`
 	// AsyncUUID 异步请求的目标UUID，用于响应路由
-	AsyncUUID string `json:"async_uuid,omitempty"`
+	AsyncUUID string `json:"async_uuid"`
 	// MsgUUID 消息唯一标识，用于请求追踪和响应匹配
 	MsgUUID string `json:"msg_uuid"`
 	// Route 路由路径，如 "/user/login"
