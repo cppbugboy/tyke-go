@@ -8,11 +8,7 @@
 // built-in encryption using ECDH key exchange and AES-GCM encryption.
 package ipc
 
-import (
-	"fmt"
-
-	"github.com/tyke/tyke/pkg/common"
-)
+import "fmt"
 
 // IpcServer represents an IPC server that can accept multiple client connections.
 //
@@ -204,12 +200,9 @@ func IpcClientSendAsync(serverName string, request []byte, timeoutMs uint32) err
 		conn := NewIpcConnection()
 		defer conn.Close()
 		if err := conn.Connect(serverName, timeoutMs, timeoutMs); err != nil {
-			common.LogError("IpcClientSendAsync: connect failed: %v", err)
 			return
 		}
-		if err := conn.WriteEncrypted(request, timeoutMs); err != nil {
-			common.LogError("IpcClientSendAsync: write failed: %v", err)
-		}
+		conn.WriteEncrypted(request, timeoutMs)
 	}()
 	return nil
 }

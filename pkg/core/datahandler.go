@@ -1,7 +1,5 @@
 package core
 
-import "github.com/tyke/tyke/pkg/common"
-
 type DataHandler struct {
 }
 
@@ -12,7 +10,7 @@ func NewDataHandler() *DataHandler {
 func (h *DataHandler) OnRequestData(data []byte, sendResponse func([]byte) bool) []byte {
 	req, _, err := DecodeRequest(data)
 	if err != nil {
-		common.LogError("DataHandler: decode request failed: %v", err)
+		LogError("DataHandler: decode request failed: %v", err)
 		return nil
 	}
 	defer ReleaseRequest(req)
@@ -24,7 +22,7 @@ func (h *DataHandler) OnRequestData(data []byte, sendResponse func([]byte) bool)
 
 	encoded, err := EncodeResponse(resp)
 	if err != nil {
-		common.LogError("DataHandler: encode response failed: %v", err)
+		LogError("DataHandler: encode response failed: %v", err)
 		return nil
 	}
 
@@ -34,7 +32,7 @@ func (h *DataHandler) OnRequestData(data []byte, sendResponse func([]byte) bool)
 func (h *DataHandler) OnResponseData(data []byte) {
 	resp, _, err := DecodeResponse(data)
 	if err != nil {
-		common.LogError("DataHandler: decode response failed: %v", err)
+		LogError("DataHandler: decode response failed: %v", err)
 		return
 	}
 	defer ReleaseResponse(resp)

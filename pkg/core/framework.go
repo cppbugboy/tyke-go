@@ -126,12 +126,12 @@ func (f *Framework) Start(listenUUID string) error {
 	}
 
 	if f.logPath != "" {
-		if err := common.InitLog(f.logPath, f.logLevel, f.logFileSizeMB, f.logFileCount); err != nil {
+		if err := InitLog(f.logPath, f.logLevel, f.logFileSizeMB, f.logFileCount); err != nil {
 			return fmt.Errorf("log init failed: %w", err)
 		}
 	}
 
-	common.LogInfo("Tyke framework starting, listen_uuid=%s", listenUUID)
+	LogInfo("Tyke framework starting, listen_uuid=%s", listenUUID)
 
 	component.InitWorkerPool(f.threadPoolCount)
 
@@ -157,7 +157,7 @@ func (f *Framework) Start(listenUUID string) error {
 	}
 
 	f.started = true
-	common.LogInfo("Tyke framework started successfully")
+	LogInfo("Tyke framework started successfully")
 	return nil
 }
 
@@ -194,7 +194,7 @@ func (f *Framework) Stop() {
 		return
 	}
 
-	common.LogInfo("Tyke framework stopping")
+	LogInfo("Tyke framework stopping")
 
 	if f.ipcServer != nil {
 		f.ipcServer.Stop()
@@ -203,5 +203,5 @@ func (f *Framework) Stop() {
 	component.StopWorkerPool(true)
 
 	f.started = false
-	common.LogInfo("Tyke framework stopped")
+	LogInfo("Tyke framework stopped")
 }

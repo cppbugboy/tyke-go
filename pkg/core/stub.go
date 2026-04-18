@@ -51,14 +51,16 @@ func (s *RequestStub) AddFuture(uuid string, ch chan *TykeResponse) {
 
 func (s *RequestStub) SetFuture(resp *TykeResponse) {
 	msgUuid := resp.GetMsgUuid()
-	s.futureMu.Lock()
+
+	s.futureMu.RLock()
 	entry, ok := s.futureMap[msgUuid]
-	if ok {
-		delete(s.futureMap, msgUuid)
-	}
-	s.futureMu.Unlock()
+	s.futureMu.RUnlock()
+
 	if ok {
 		entry.ch <- resp
+		s.futureMu.Lock()
+		delete(s.futureMap, msgUuid)
+		s.futureMu.Unlock()
 	}
 }
 
@@ -79,14 +81,16 @@ func (s *RequestStub) AddFunc(msgUuid string, fn func(*TykeResponse)) {
 
 func (s *RequestStub) ExecFunc(resp *TykeResponse) {
 	msgUuid := resp.GetMsgUuid()
-	s.futureMu.Lock()
+
+	s.funcMu.RLock()
 	entry, ok := s.funcMap[msgUuid]
-	if ok {
-		delete(s.futureMap, msgUuid)
-	}
-	s.futureMu.Unlock()
+	s.funcMu.RUnlock()
+
 	if ok {
 		entry.fn(resp)
+		s.funcMu.Lock()
+		delete(s.funcMap, msgUuid)
+		s.funcMu.Unlock()
 	}
 }
 
@@ -129,6 +133,6 @@ func (s *RequestStub) HandleResponse(resp *TykeResponse) {
 	case common.MessageTypeResponseAsyncFunc:
 		s.ExecFunc(resp)
 	default:
-		common.LogError(fmt.Sprintf("Unknown message type: %s", msgType))
+		fmt.Printf("RequestStub: unhandled response type %d\n", msgType)
 	}
 }

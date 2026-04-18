@@ -128,6 +128,48 @@ func TestDispatchRequestFilterInterrupt(t *testing.T) {
 	}
 }
 
+func TestFlatRouteTableCache(t *testing.T) {
+	r := newRouter[RequestFilter, RequestHandlerFunc]()
+	root := r.GetRoot()
+
+	root.AddRouteHandler("/flat/root", func(req *TykeRequest, resp *TykeResponse) {})
+	apiGroup := root.AddSubGroup("/flat/api")
+	apiGroup.AddRouteHandler("/users", func(req *TykeRequest, resp *TykeResponse) {})
+	apiGroup.AddRouteHandler("/posts", func(req *TykeRequest, resp *TykeResponse) {})
+
+	if entry := r.GetRouteEntry("/flat/root"); entry == nil {
+		t.Error("flat cache: root route not found")
+	}
+	if entry := r.GetRouteEntry("/flat/api/users"); entry == nil {
+		t.Error("flat cache: subgroup route /flat/api/users not found")
+	}
+	if entry := r.GetRouteEntry("/flat/api/posts"); entry == nil {
+		t.Error("flat cache: subgroup route /flat/api/posts not found")
+	}
+	if entry := r.GetRouteEntry("/nonexistent"); entry != nil {
+		t.Error("flat cache: nonexistent route should return nil")
+	}
+}
+
+func TestGenericRouterResponse(t *testing.T) {
+	r := newRouter[ResponseFilter, ResponseHandlerFunc]()
+	root := r.GetRoot()
+
+	called := false
+	root.AddRouteHandler("/resp/test", func(resp *TykeResponse) {
+		called = true
+	})
+
+	entry := r.GetRouteEntry("/resp/test")
+	if entry == nil {
+		t.Fatal("response route not found in flat cache")
+	}
+	entry.Handler(nil)
+	if !called {
+		t.Error("response handler was not called")
+	}
+}
+
 func TestDispatchRequestRouteNotFound(t *testing.T) {
 	req := AcquireRequest()
 	defer ReleaseRequest(req)
