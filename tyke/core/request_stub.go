@@ -49,13 +49,6 @@ func RequestStubSetFuture(response *TykeResponse) {
 	}
 }
 
-func RequestStubDelFuture(msgUuid string) {
-	uuidFutureMapMu.Lock()
-	defer uuidFutureMapMu.Unlock()
-	delete(uuidFutureMap, msgUuid)
-	common.LogDebug("Future entry deleted", "uuid", msgUuid)
-}
-
 func RequestStubAddFunc(msgUuid string, fn func(*TykeResponse)) {
 	uuidFuncMapMu.Lock()
 	defer uuidFuncMapMu.Unlock()
