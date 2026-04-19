@@ -81,6 +81,11 @@ func (r *TykeRequest) GetMsgUuid() string {
 	return r.metadata.GetMsgUuid()
 }
 
+func (r *TykeRequest) SetAsyncUuid(asyncUuid string) *TykeRequest {
+	r.metadata.SetAsyncUuid(asyncUuid)
+	return r
+}
+
 func (r *TykeRequest) GetAsyncUuid() string {
 	return r.metadata.GetAsyncUuid()
 }
@@ -119,7 +124,7 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse) common.BoolR
 	return common.OkBool(true)
 }
 
-func (r *TykeRequest) SendAsync(sendUuid string, recvUuid string) common.BoolResult {
+func (r *TykeRequest) SendAsync(sendUuid string) common.BoolResult {
 	return r.encodeAndSend(sendUuid, common.MessageTypeRequestAsync)
 }
 
@@ -133,7 +138,7 @@ func (r *TykeRequest) SendAsyncWithFunc(sendUuid string, fn func(*TykeResponse))
 	return result
 }
 
-func (r *TykeRequest) SendAsyncWithFuture(sendUuid string, recvUuid string) (ResponseFuture, error) {
+func (r *TykeRequest) SendAsyncWithFuture(sendUuid string) (ResponseFuture, error) {
 	common.LogDebug("SendAsyncWithFuture", "send_uuid", sendUuid, "route", r.GetRoute())
 	result := r.encodeAndSend(sendUuid, common.MessageTypeRequestAsyncFuture)
 	if !result.HasValue() {
