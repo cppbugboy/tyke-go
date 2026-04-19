@@ -71,36 +71,3 @@ func RequestStubExecFunc(response *TykeResponse) {
 		common.LogWarn("Callback entry not found for response", "uuid", response.GetMsgUuid())
 	}
 }
-
-func RequestStubCleanupExpired(timeoutMs ...uint32) {
-	timeout := uint32(common.DefaultStubTimeoutMs)
-	if len(timeoutMs) > 0 {
-		timeout = timeoutMs[0]
-	}
-	now := time.Now()
-	timeoutDur := time.Duration(timeout) * time.Millisecond
-
-	uuidFutureMapMu.Lock()
-	for uuid, entry := range uuidFutureMap {
-		if now.Sub(entry.createdAt) > timeoutDur {
-			common.LogWarn("Future entry expired", "uuid", uuid)
-			timeoutResp := TykeResponse{
-				protocolHeader: common.ProtocolHeader{Magic: common.ProtocolMagic},
-				metadata:       NewResponseMetadata(),
-			}
-			timeoutResp.metadata.SetStatus(common.HttpStatusTimeout).SetReason("Request Timeout")
-			entry.ch <- &timeoutResp
-			delete(uuidFutureMap, uuid)
-		}
-	}
-	uuidFutureMapMu.Unlock()
-
-	uuidFuncMapMu.Lock()
-	for uuid, entry := range uuidFuncMap {
-		if now.Sub(entry.createdAt) > timeoutDur {
-			common.LogWarn("Callback entry expired", "uuid", uuid)
-			delete(uuidFuncMap, uuid)
-		}
-	}
-	uuidFuncMapMu.Unlock()
-}
