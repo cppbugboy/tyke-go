@@ -69,6 +69,8 @@ var (
 	ReleaseResponse           = core.ReleaseResponse
 	GetRequestRouterInstance  = core.GetRequestRouterInstance
 	GetResponseRouterInstance = core.GetResponseRouterInstance
+	GetRequestRouter          = core.GetRequestRouter
+	GetResponseRouter         = core.GetResponseRouter
 	DispatchRequest           = core.DispatchRequest
 	DispatchResponse          = core.DispatchResponse
 )

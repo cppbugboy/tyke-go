@@ -40,7 +40,8 @@ func RequestStubSetFuture(response *TykeResponse) {
 	uuidFutureMapMu.Lock()
 	defer uuidFutureMapMu.Unlock()
 	if entry, ok := uuidFutureMap[response.GetMsgUuid()]; ok {
-		entry.ch <- response
+		respCopy := *response
+		entry.ch <- &respCopy
 		delete(uuidFutureMap, response.GetMsgUuid())
 		common.LogDebug("Future result set", "uuid", response.GetMsgUuid())
 	} else {
@@ -90,9 +91,12 @@ func RequestStubCleanupExpired(timeoutMs ...uint32) {
 	for uuid, entry := range uuidFutureMap {
 		if now.Sub(entry.createdAt) > timeoutDur {
 			common.LogWarn("Future entry expired", "uuid", uuid)
-			timeoutResp := NewTykeResponse()
-			timeoutResp.SetResult(common.HttpStatusTimeout, "Request Timeout")
-			entry.ch <- timeoutResp
+			timeoutResp := TykeResponse{
+				protocolHeader: common.ProtocolHeader{Magic: common.ProtocolMagic},
+				metadata:       NewResponseMetadata(),
+			}
+			timeoutResp.metadata.SetStatus(common.HttpStatusTimeout).SetReason("Request Timeout")
+			entry.ch <- &timeoutResp
 			delete(uuidFutureMap, uuid)
 		}
 	}

@@ -93,48 +93,22 @@ func (m *MetadataBase) GetMetadata(key string) (common.JsonValue, bool) {
 	return v, ok
 }
 
-func (m *MetadataBase) ToJsonString() (string, error) {
-	data, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	if len(m.HeadersMap) > 0 {
-		var raw map[string]json.RawMessage
-		if err := json.Unmarshal(data, &raw); err != nil {
-			return "", err
-		}
-		for k, v := range m.HeadersMap {
-			if _, exists := raw[k]; !exists {
-				raw[k] = common.VariantToJson(v)
-			}
-		}
-		data, err = json.Marshal(raw)
-		if err != nil {
-			return "", err
+func jsonStringField(raw map[string]json.RawMessage, key string) string {
+	if v, ok := raw[key]; ok {
+		var s string
+		if json.Unmarshal(v, &s) == nil {
+			return s
 		}
 	}
-	return string(data), nil
+	return ""
 }
 
-func (m *MetadataBase) FromJsonString(jsonStr string, knownKeys map[string]bool) error {
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(jsonStr), &raw); err != nil {
-		return err
-	}
-	data, err := json.Marshal(raw)
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(data, m); err != nil {
-		return err
-	}
-	if m.HeadersMap == nil {
-		m.HeadersMap = make(map[string]common.JsonValue)
-	}
-	for k, v := range raw {
-		if !knownKeys[k] {
-			m.HeadersMap[k] = common.JsonToVariant(v)
+func jsonIntField(raw map[string]json.RawMessage, key string) int {
+	if v, ok := raw[key]; ok {
+		var n int
+		if json.Unmarshal(v, &n) == nil {
+			return n
 		}
 	}
-	return nil
+	return 0
 }

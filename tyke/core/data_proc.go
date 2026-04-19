@@ -25,53 +25,19 @@ func DecodeResponse(dataVec []byte, response *TykeResponse, dataSize *uint32) bo
 }
 
 func encodeRequest(request *TykeRequest) ([]byte, error) {
-	metadataBytes, err := json.Marshal(&struct {
-		Module      string `json:"module"`
-		AsyncUuid   string `json:"async_uuid"`
-		MsgUuid     string `json:"msg_uuid"`
-		Route       string `json:"route"`
-		ContentType string `json:"content_type"`
-		Timestamp   string `json:"timestamp"`
-	}{
-		Module:      request.metadata.Module,
-		AsyncUuid:   request.metadata.AsyncUuid,
-		MsgUuid:     request.metadata.MsgUuid,
-		Route:       request.metadata.Route,
-		ContentType: request.metadata.ContentType,
-		Timestamp:   request.metadata.Timestamp,
-	})
+	metadataBytes, err := json.Marshal(&request.metadata)
 	if err != nil {
 		return nil, fmt.Errorf("metadata serialization failed: %w", err)
 	}
-	metadataString := string(metadataBytes)
-
-	return encodeCommon(&request.protocolHeader, metadataString, request.content)
+	return encodeCommon(&request.protocolHeader, string(metadataBytes), request.content)
 }
 
 func encodeResponse(response *TykeResponse) ([]byte, error) {
-	metadataBytes, err := json.Marshal(&struct {
-		Module      string `json:"module"`
-		MsgUuid     string `json:"msg_uuid"`
-		Route       string `json:"route"`
-		ContentType string `json:"content_type"`
-		Timestamp   string `json:"timestamp"`
-		Status      int    `json:"status"`
-		Reason      string `json:"reason"`
-	}{
-		Module:      response.metadata.Module,
-		MsgUuid:     response.metadata.MsgUuid,
-		Route:       response.metadata.Route,
-		ContentType: response.metadata.ContentType,
-		Timestamp:   response.metadata.Timestamp,
-		Status:      response.metadata.Status,
-		Reason:      response.metadata.Reason,
-	})
+	metadataBytes, err := json.Marshal(&response.metadata)
 	if err != nil {
 		return nil, fmt.Errorf("metadata serialization failed: %w", err)
 	}
-	metadataString := string(metadataBytes)
-
-	return encodeCommon(&response.protocolHeader, metadataString, response.content)
+	return encodeCommon(&response.protocolHeader, string(metadataBytes), response.content)
 }
 
 func encodeCommon(ph *common.ProtocolHeader, metadataString string, content []byte) ([]byte, error) {

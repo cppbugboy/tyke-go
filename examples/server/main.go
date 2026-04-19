@@ -2,18 +2,41 @@ package main
 
 import (
 	"fmt"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/tyke/tyke/examples/controllers"
+	"github.com/tyke/tyke/tyke/controller"
 	"github.com/tyke/tyke/tyke/core"
 )
 
 func main() {
-	startResult := core.App().Start("39649d81-81c5-4f6e-b6a9-e768b55063be")
-	if !startResult.HasValue() {
-		fmt.Printf("start failed: %s\n", startResult.Err)
-		return
+	fmt.Println("========================================")
+	fmt.Println("  Tyke 示例服务端")
+	fmt.Println("========================================")
+	fmt.Println()
+
+	framework := core.App()
+	framework.SetThreadPoolCount(4)
+	framework.SetLogConfig("./tyke_server.log", "debug", 1024, 5)
+
+	controller.RegisterController(controllers.NewExampleRequestController())
+	controller.RegisterController(controllers.NewExampleResponseController())
+
+	result := framework.Start("tyke_server_example")
+	if !result.HasValue() {
+		fmt.Printf("服务端启动失败: %s\n", result.Err)
+		os.Exit(1)
 	}
-	for {
-		time.Sleep(time.Second)
-	}
+
+	fmt.Println("服务端已启动，监听UUID: tyke_server_example")
+	fmt.Println("按 Ctrl+C 停止服务端...")
+	fmt.Println()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+
+	fmt.Println("\n服务端已关闭")
 }

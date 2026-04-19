@@ -45,6 +45,14 @@ func (g *RouterGroup[FilterType, HandlerFunc]) AddRouteHandler(path string, hand
 	}
 }
 
+func (g *RouterGroup[FilterType, HandlerFunc]) Group(subPrefix string) *RouterGroup[FilterType, HandlerFunc] {
+	return g.AddSubGroup(subPrefix)
+}
+
+func (g *RouterGroup[FilterType, HandlerFunc]) Route(path string, handler HandlerFunc) {
+	g.AddRouteHandler(path, handler)
+}
+
 func (g *RouterGroup[FilterType, HandlerFunc]) CollectFilters(chain *[]FilterType) {
 	if g.parent != nil {
 		g.parent.CollectFilters(chain)

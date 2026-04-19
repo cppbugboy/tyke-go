@@ -13,3 +13,7 @@ func GetRequestRouterInstance() *RouterBase[RequestFilter, RequestHandlerFunc] {
 	})
 	return requestRouterInstance
 }
+
+func GetRequestRouter() *RouterBase[RequestFilter, RequestHandlerFunc] {
+	return GetRequestRouterInstance()
+}

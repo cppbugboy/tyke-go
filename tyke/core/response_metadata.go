@@ -1,6 +1,10 @@
 package core
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/tyke/tyke/tyke/common"
+)
 
 type ResponseMetadata struct {
 	MetadataBase
@@ -13,45 +17,43 @@ func NewResponseMetadata() ResponseMetadata {
 }
 
 func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Module      string `json:"module"`
-		MsgUuid     string `json:"msg_uuid"`
-		Route       string `json:"route"`
-		ContentType string `json:"content_type"`
-		Timestamp   string `json:"timestamp"`
-		Status      int    `json:"status"`
-		Reason      string `json:"reason"`
-	}{
-		Module:      r.Module,
-		MsgUuid:     r.MsgUuid,
-		Route:       r.Route,
-		ContentType: r.ContentType,
-		Timestamp:   r.Timestamp,
-		Status:      r.Status,
-		Reason:      r.Reason,
-	})
+	raw := map[string]any{
+		"module":       r.Module,
+		"msg_uuid":     r.MsgUuid,
+		"route":        r.Route,
+		"content_type": r.ContentType,
+		"timestamp":    r.Timestamp,
+		"status":       r.Status,
+		"reason":       r.Reason,
+	}
+	for k, v := range r.HeadersMap {
+		if _, exists := raw[k]; !exists {
+			raw[k] = v
+		}
+	}
+	return json.Marshal(raw)
 }
 
 func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
-	var aux struct {
-		Module      string `json:"module"`
-		MsgUuid     string `json:"msg_uuid"`
-		Route       string `json:"route"`
-		ContentType string `json:"content_type"`
-		Timestamp   string `json:"timestamp"`
-		Status      int    `json:"status"`
-		Reason      string `json:"reason"`
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	r.Module = aux.Module
-	r.MsgUuid = aux.MsgUuid
-	r.Route = aux.Route
-	r.ContentType = aux.ContentType
-	r.Timestamp = aux.Timestamp
-	r.Status = aux.Status
-	r.Reason = aux.Reason
+	r.Module = jsonStringField(raw, "module")
+	r.MsgUuid = jsonStringField(raw, "msg_uuid")
+	r.Route = jsonStringField(raw, "route")
+	r.ContentType = jsonStringField(raw, "content_type")
+	r.Timestamp = jsonStringField(raw, "timestamp")
+	r.Status = jsonIntField(raw, "status")
+	r.Reason = jsonStringField(raw, "reason")
+	if r.HeadersMap == nil {
+		r.HeadersMap = make(map[string]common.JsonValue)
+	}
+	for k, v := range raw {
+		if !ResponseMetadataKnownKeys[k] {
+			r.HeadersMap[k] = common.JsonToVariant(v)
+		}
+	}
 	return nil
 }
 
@@ -79,5 +81,5 @@ var ResponseMetadataKnownKeys = map[string]bool{
 }
 
 func (r *ResponseMetadata) FromJsonString(jsonStr string) error {
-	return r.MetadataBase.FromJsonString(jsonStr, ResponseMetadataKnownKeys)
+	return json.Unmarshal([]byte(jsonStr), r)
 }

@@ -13,3 +13,7 @@ func GetResponseRouterInstance() *RouterBase[ResponseFilter, ResponseHandlerFunc
 	})
 	return responseRouterInstance
 }
+
+func GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
+	return GetResponseRouterInstance()
+}

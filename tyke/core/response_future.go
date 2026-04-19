@@ -10,7 +10,5 @@ func NewResponseFuture(msgUuid string, ch chan *TykeResponse) ResponseFuture {
 }
 
 func (f *ResponseFuture) GetResponse() *TykeResponse {
-	resp := <-f.ch
-	RequestStubDelFuture(f.msgUuid)
-	return resp
+	return <-f.ch
 }

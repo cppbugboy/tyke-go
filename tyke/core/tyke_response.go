@@ -15,7 +15,6 @@ type TykeResponse struct {
 	isSend          bool
 	clientId        ipc.ClientId
 	sendDataHandler SendDataHandler
-	targetUuid      string
 }
 
 var responsePool = component.NewObjectPool(func() TykeResponse {
@@ -51,7 +50,6 @@ func (r *TykeResponse) Reset() {
 	r.isSend = false
 	r.clientId = 0
 	r.sendDataHandler = nil
-	r.targetUuid = ""
 }
 
 func (r *TykeResponse) GetMagic() [4]byte {
@@ -121,13 +119,13 @@ func (r *TykeResponse) GetResult() (int, string) {
 	return r.metadata.GetStatus(), r.metadata.GetReason()
 }
 
-func (r *TykeResponse) SetAsyncUuid(targetUuid string) *TykeResponse {
-	r.targetUuid = targetUuid
+func (r *TykeResponse) SetAsyncUuid(asyncUuid string) *TykeResponse {
+	r.metadata.AsyncUuid = asyncUuid
 	return r
 }
 
 func (r *TykeResponse) GetAsyncUuid() string {
-	return r.targetUuid
+	return r.metadata.AsyncUuid
 }
 
 func (r *TykeResponse) SetSendDataHandler(handler SendDataHandler) *TykeResponse {
@@ -166,7 +164,7 @@ func (r *TykeResponse) Send() common.BoolResult {
 }
 
 func (r *TykeResponse) SendAsync() common.BoolResult {
-	common.LogDebug("SendAsync", "route", r.GetRoute(), "msg_uuid", r.GetMsgUuid(), "target_uuid", r.targetUuid)
+	common.LogDebug("SendAsync", "route", r.GetRoute(), "msg_uuid", r.GetMsgUuid(), "asyncUuid", r.metadata.AsyncUuid)
 	if r.isSend {
 		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUuid())
 		return common.ErrBool("response already sent")
@@ -177,7 +175,7 @@ func (r *TykeResponse) SendAsync() common.BoolResult {
 		common.LogError("Encode response failed", "error", err)
 		return common.ErrBool("encode response failed")
 	}
-	sendResult := ipc.IpcClientSendAsync(r.targetUuid, dataVec)
+	sendResult := ipc.IpcClientSendAsync(r.metadata.AsyncUuid, dataVec)
 	if !sendResult.HasValue() {
 		common.LogError("Send async failed", "error", sendResult.Err)
 		return common.ErrBool("send async failed: " + sendResult.Err)
