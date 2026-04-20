@@ -98,8 +98,12 @@ func (r *TykeRequest) GetMetadata(key string) (common.JsonValue, bool) {
 	return r.metadata.GetMetadata(key)
 }
 
-func (r *TykeRequest) Send(sendUuid string, response *TykeResponse) common.BoolResult {
-	common.LogDebug("Send", "send_uuid", sendUuid, "route", r.GetRoute())
+func (r *TykeRequest) Send(sendUuid string, response *TykeResponse, timeoutMs ...uint32) common.BoolResult {
+	tm := uint32(common.DefaultTimeoutMs)
+	if len(timeoutMs) > 0 {
+		tm = timeoutMs[0]
+	}
+	common.LogDebug("Send", "send_uuid", sendUuid, "route", r.GetRoute(), "timeout", tm)
 
 	r.protocolHeader.MsgType = common.MessageTypeRequest
 	r.metadata.SetMsgUuid(common.GenerateUUID()).SetTimestamp(common.GenerateTimestamp())
@@ -114,7 +118,7 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse) common.BoolR
 		var dataSize uint32
 		decodeResult := DecodeResponse(recvData, response, &dataSize)
 		return decodeResult
-	})
+	}, tm)
 	if !sendResult.HasValue() {
 		common.LogError("Send request failed", "error", sendResult.Err)
 		return common.ErrBool("send request failed: " + sendResult.Err)
@@ -124,35 +128,47 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse) common.BoolR
 	return common.OkBool(true)
 }
 
-func (r *TykeRequest) SendAsync(sendUuid string) common.BoolResult {
-	return r.encodeAndSend(sendUuid, common.MessageTypeRequestAsync)
+func (r *TykeRequest) SendAsync(sendUuid string, timeoutMs ...uint32) common.BoolResult {
+	return r.encodeAndSend(sendUuid, common.MessageTypeRequestAsync, timeoutMs...)
 }
 
-func (r *TykeRequest) SendAsyncWithFunc(sendUuid string, fn func(*TykeResponse)) common.BoolResult {
-	common.LogDebug("SendAsyncWithFunc", "send_uuid", sendUuid, "route", r.GetRoute())
-	result := r.encodeAndSend(sendUuid, common.MessageTypeRequestAsyncFunc)
+func (r *TykeRequest) SendAsyncWithFunc(sendUuid string, fn func(*TykeResponse), timeoutMs ...uint32) common.BoolResult {
+	tm := uint32(common.DefaultTimeoutMs)
+	if len(timeoutMs) > 0 {
+		tm = timeoutMs[0]
+	}
+	common.LogDebug("SendAsyncWithFunc", "send_uuid", sendUuid, "route", r.GetRoute(), "timeout", tm)
+	result := r.encodeAndSend(sendUuid, common.MessageTypeRequestAsyncFunc, timeoutMs...)
 	if result.HasValue() {
-		RequestStubAddFunc(r.metadata.GetMsgUuid(), fn)
+		RequestStubAddFunc(r.metadata.GetMsgUuid(), fn, tm)
 		common.LogDebug("Async callback registered", "msg_uuid", r.GetMsgUuid())
 	}
 	return result
 }
 
-func (r *TykeRequest) SendAsyncWithFuture(sendUuid string) (ResponseFuture, error) {
-	common.LogDebug("SendAsyncWithFuture", "send_uuid", sendUuid, "route", r.GetRoute())
-	result := r.encodeAndSend(sendUuid, common.MessageTypeRequestAsyncFuture)
+func (r *TykeRequest) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) (ResponseFuture, error) {
+	tm := uint32(common.DefaultTimeoutMs)
+	if len(timeoutMs) > 0 {
+		tm = timeoutMs[0]
+	}
+	common.LogDebug("SendAsyncWithFuture", "send_uuid", sendUuid, "route", r.GetRoute(), "timeout", tm)
+	result := r.encodeAndSend(sendUuid, common.MessageTypeRequestAsyncFuture, timeoutMs...)
 	if !result.HasValue() {
 		return ResponseFuture{}, fmt.Errorf("%s", result.Err)
 	}
 	ch := make(chan *TykeResponse, 1)
-	RequestStubAddFuture(r.metadata.GetMsgUuid(), ch)
+	RequestStubAddFuture(r.metadata.GetMsgUuid(), ch, tm)
 	future := NewResponseFuture(r.metadata.GetMsgUuid(), ch)
 	common.LogDebug("Future registered", "msg_uuid", r.GetMsgUuid())
 	return future, nil
 }
 
-func (r *TykeRequest) encodeAndSend(sendUuid string, msgType common.MessageType) common.BoolResult {
-	common.LogDebug("EncodeAndSend", "send_uuid", sendUuid, "route", r.GetRoute(), "msg_type", int(msgType))
+func (r *TykeRequest) encodeAndSend(sendUuid string, msgType common.MessageType, timeoutMs ...uint32) common.BoolResult {
+	tm := uint32(common.DefaultTimeoutMs)
+	if len(timeoutMs) > 0 {
+		tm = timeoutMs[0]
+	}
+	common.LogDebug("EncodeAndSend", "send_uuid", sendUuid, "route", r.GetRoute(), "msg_type", int(msgType), "timeout", tm)
 	r.protocolHeader.MsgType = msgType
 	r.metadata.SetMsgUuid(common.GenerateUUID()).SetTimestamp(common.GenerateTimestamp())
 
@@ -162,7 +178,7 @@ func (r *TykeRequest) encodeAndSend(sendUuid string, msgType common.MessageType)
 		return common.ErrBool("encode request failed")
 	}
 
-	sendResult := ipc.IpcClientSendAsync(sendUuid, dataVec)
+	sendResult := ipc.IpcClientSendAsync(sendUuid, dataVec, tm)
 	if !sendResult.HasValue() {
 		common.LogError("Send request failed", "error", sendResult.Err)
 		return common.ErrBool("send request failed: " + sendResult.Err)

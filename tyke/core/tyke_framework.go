@@ -72,6 +72,11 @@ func (f *TykeFramework) Start(listenUuid string) common.BoolResult {
 	tp.Init(int(f.threadPoolCount))
 	common.LogDebug("Thread pool initialized", "threads", f.threadPoolCount)
 
+	tw := component.GetTimingWheel()
+	tw.SetExpiredCallbacks(RequestStubCleanupExpiredFunc, RequestStubCleanupExpiredFuture)
+	tw.Init()
+	common.LogDebug("TimingWheel initialized")
+
 	if f.ipcServer == nil {
 		common.LogError("IPC server is not initialized")
 		return common.ErrBool("ipc server is not initialized")
