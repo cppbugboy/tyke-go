@@ -6,21 +6,23 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
-type IpcConnection struct {
-	impl     IClientConnectionImpl
+// IPCConnection 表示一个加密的 IPC 客户端连接。
+type IPCConnection struct {
+	impl     ClientConnection
 	lastUsed time.Time
 }
 
-func NewIpcConnection() *IpcConnection {
-	conn := &IpcConnection{impl: createClientConnectionImpl()}
+// NewIPCConnection 创建一个新的 IPCConnection 实例。
+func NewIPCConnection() *IPCConnection {
+	conn := &IPCConnection{impl: createClientConnectionImpl()}
 	conn.UpdateLastUsedTime()
-	common.LogDebug("IpcConnection constructed")
+	common.LogDebug("IPCConnection constructed")
 	return conn
 }
 
-func (c *IpcConnection) Connect(serverName string, timeoutMs uint32, rwTimeoutMs uint32) common.BoolResult {
+func (c *IPCConnection) Connect(serverName string, timeoutMs uint32) common.BoolResult {
 	common.LogDebug("Connecting to server", "server_name", serverName, "timeout", timeoutMs)
-	result := c.impl.Connect(serverName, timeoutMs, rwTimeoutMs)
+	result := c.impl.Connect(serverName, timeoutMs)
 	if !result.HasValue() {
 		common.LogError("Connect failed", "error", result.Err)
 		return common.ErrBool("connect failed: " + result.Err)
@@ -29,7 +31,7 @@ func (c *IpcConnection) Connect(serverName string, timeoutMs uint32, rwTimeoutMs
 	return common.OkBool(true)
 }
 
-func (c *IpcConnection) WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult {
+func (c *IPCConnection) WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult {
 	common.LogDebug("WriteEncrypted", "size", len(data), "timeout", timeoutMs)
 	result := c.impl.WriteEncrypted(data, timeoutMs)
 	if !result.HasValue() {
@@ -39,7 +41,7 @@ func (c *IpcConnection) WriteEncrypted(data []byte, timeoutMs uint32) common.Boo
 	return common.OkBool(true)
 }
 
-func (c *IpcConnection) ReadLoop(callback ClientRecvDataCallback, timeoutMs uint32) common.BoolResult {
+func (c *IPCConnection) ReadLoop(callback ClientRecvDataCallback, timeoutMs uint32) common.BoolResult {
 	common.LogDebug("ReadLoop", "timeout", timeoutMs)
 	result := c.impl.ReadLoop(callback, timeoutMs)
 	if !result.HasValue() {
@@ -49,84 +51,77 @@ func (c *IpcConnection) ReadLoop(callback ClientRecvDataCallback, timeoutMs uint
 	return common.OkBool(true)
 }
 
-func (c *IpcConnection) Close() {
+func (c *IPCConnection) Close() {
 	common.LogDebug("Closing connection")
 	c.impl.Close()
 }
 
-func (c *IpcConnection) IsValid() bool {
+func (c *IPCConnection) IsValid() bool {
 	return c.impl.IsValid()
 }
 
-func (c *IpcConnection) UpdateLastUsedTime() {
+func (c *IPCConnection) UpdateLastUsedTime() {
 	c.lastUsed = time.Now()
 }
 
-func (c *IpcConnection) GetLastUsedTime() time.Time {
+func (c *IPCConnection) GetLastUsedTime() time.Time {
 	return c.lastUsed
 }
 
-func IpcClientSend(serverName string, request []byte, callback ClientRecvDataCallback, timeoutMs ...uint32) common.BoolResult {
-	tm := uint32(IpcDefaultTimeoutMs)
+// IPCClientSend 同步发送数据到指定服务器并等待响应。
+func IPCClientSend(serverName string, request []byte, callback ClientRecvDataCallback, timeoutMs ...uint32) common.BoolResult {
+	tm := uint32(IPCDefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
 		tm = timeoutMs[0]
 	}
-	common.LogDebug("IpcClient::Send", "server_name", serverName, "request_size", len(request))
+	common.LogDebug("IPC client sending data", "server_name", serverName, "request_size", len(request))
 
 	pool := GetConnectionPoolFactory().GetPool(serverName)
 	conn, err := pool.Acquire()
 	if err != nil {
-		common.LogError("IpcClient::Send acquire connection failed", "error", err)
+		common.LogError("IPC client sending data acquire connection failed", "error", err)
 		return common.ErrBool("send: " + err.Error())
 	}
 
-	shouldReconnect := false
-
 	if writeResult := conn.WriteEncrypted(request, tm); !writeResult.HasValue() {
-		common.LogError("IpcClient::Send write failed", "error", writeResult.Err)
-		shouldReconnect = true
-		pool.Release(conn, shouldReconnect)
+		common.LogError("IPC client sending data write failed", "error", writeResult.Err)
+		pool.Release(conn, true)
 		return common.ErrBool("send: " + writeResult.Err)
 	}
 	if readResult := conn.ReadLoop(callback, tm); !readResult.HasValue() {
-		common.LogError("IpcClient::Send read failed", "error", readResult.Err)
-		shouldReconnect = true
-		pool.Release(conn, shouldReconnect)
+		common.LogError("IPC client sending data read failed", "error", readResult.Err)
+		pool.Release(conn, true)
 		return common.ErrBool("send: " + readResult.Err)
 	}
 
-	pool.Release(conn, shouldReconnect)
-	common.LogDebug("IpcClient::Send completed successfully")
+	pool.Release(conn, false)
+	common.LogDebug("IPC client sending data completed successfully")
 	return common.OkBool(true)
 }
 
-func IpcClientSendAsync(serverName string, request []byte, timeoutMs ...uint32) common.BoolResult {
-	tm := uint32(IpcDefaultTimeoutMs)
+// IPCClientSend 同步发送数据到指定服务器并等待响应。
+func IPCClientSendAsync(serverName string, request []byte, timeoutMs ...uint32) common.BoolResult {
+	tm := uint32(IPCDefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
 		tm = timeoutMs[0]
 	}
-	common.LogDebug("IpcClient::SendAsync", "server_name", serverName, "request_size", len(request))
+	common.LogDebug("IPC client sending dataAsync", "server_name", serverName, "request_size", len(request))
 
 	pool := GetConnectionPoolFactory().GetPool(serverName)
 	conn, err := pool.Acquire()
 	if err != nil {
-		common.LogError("IpcClient::SendAsync acquire connection failed", "error", err)
+		common.LogError("IPC client sending dataAsync acquire connection failed", "error", err)
 		return common.ErrBool("send async: " + err.Error())
 	}
 
-	shouldReconnect := false
-
 	if writeResult := conn.WriteEncrypted(request, tm); !writeResult.HasValue() {
-		common.LogError("IpcClient::SendAsync write failed", "error", writeResult.Err)
-		shouldReconnect = true
-	}
-
-	pool.Release(conn, shouldReconnect)
-
-	if shouldReconnect {
+		common.LogError("IPC client sending dataAsync write failed", "error", writeResult.Err)
+		pool.Release(conn, true)
 		return common.ErrBool("send async: write encrypted failed")
 	}
 
-	common.LogDebug("IpcClient::SendAsync completed successfully")
+	pool.Release(conn, false)
+
+	common.LogDebug("IPC client sending dataAsync completed successfully")
 	return common.OkBool(true)
 }

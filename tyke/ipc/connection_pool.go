@@ -1,3 +1,4 @@
+// Package ipc 实现了基于加密通道的进程间通信功能。
 package ipc
 
 import (
@@ -9,6 +10,7 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
+// ConnectionPoolConfig 定义了连接池的配置参数。
 type ConnectionPoolConfig struct {
 	MaxConnections     int
 	MinIdleConnections int
@@ -20,27 +22,29 @@ type ConnectionPoolConfig struct {
 
 func DefaultConnectionPoolConfig() ConnectionPoolConfig {
 	return ConnectionPoolConfig{
-		MaxConnections:     IpcDefaultMaxConnections,
+		MaxConnections:     IPCDefaultMaxConnections,
 		MinIdleConnections: 1,
-		IdleTimeoutMs:      IpcDefaultIdleTimeoutMs,
-		ConnectTimeoutMs:   IpcDefaultTimeoutMs,
-		RwTimeoutMs:        IpcDefaultTimeoutMs,
+		IdleTimeoutMs:      IPCDefaultIdleTimeoutMs,
+		ConnectTimeoutMs:   IPCDefaultTimeoutMs,
+		RwTimeoutMs:        IPCDefaultTimeoutMs,
 		AcquireTimeoutMs:   3000,
 	}
 }
 
+// ConnectionPool 管理一组 IPC 连接，提供连接复用和生命周期管理。
 type ConnectionPool struct {
 	serverUuid       string
 	config           ConnectionPoolConfig
-	idle             []*IpcConnection
+	idle             []*IPCConnection
 	active           int32
 	mu               sync.Mutex
 	available        chan struct{}
 	stopCh           chan struct{}
 	wg               sync.WaitGroup
-	createConnection func() *IpcConnection
+	createConnection func() *IPCConnection
 }
 
+// NewConnectionPool 创建一个新的连接池。
 func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *ConnectionPool {
 	p := &ConnectionPool{
 		serverUuid: serverUuid,
@@ -57,7 +61,7 @@ func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *Connecti
 	return p
 }
 
-func (p *ConnectionPool) Acquire() (*IpcConnection, error) {
+func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 	p.mu.Lock()
 
 	for {
@@ -107,7 +111,7 @@ func (p *ConnectionPool) Acquire() (*IpcConnection, error) {
 	}
 }
 
-func (p *ConnectionPool) Release(conn *IpcConnection, shouldReconnect bool) {
+func (p *ConnectionPool) Release(conn *IPCConnection, shouldReconnect bool) {
 	if conn == nil {
 		return
 	}
@@ -179,9 +183,9 @@ func (p *ConnectionPool) Stop() {
 	common.LogInfo("Connection pool stopped", "server_uuid", p.serverUuid)
 }
 
-func (p *ConnectionPool) defaultCreateConnection() *IpcConnection {
-	conn := NewIpcConnection()
-	result := conn.Connect(p.serverUuid, p.config.ConnectTimeoutMs, p.config.RwTimeoutMs)
+func (p *ConnectionPool) defaultCreateConnection() *IPCConnection {
+	conn := NewIPCConnection()
+	result := conn.Connect(p.serverUuid, p.config.ConnectTimeoutMs)
 	if !result.HasValue() {
 		common.LogError("Failed to connect new connection", "server", p.serverUuid, "error", result.Err)
 		conn.Close()

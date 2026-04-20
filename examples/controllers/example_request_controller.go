@@ -36,7 +36,7 @@ func (c *ExampleRequestController) logRequest(request *core.TykeRequest, handler
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("[%s] 请求处理器: %s\n", now.Format("2006-01-02 15:04:05"), handlerName)
 	fmt.Printf("========================================\n")
-	fmt.Printf("消息UUID: %s\n", request.GetMsgUuid())
+	fmt.Printf("消息UUID: %s\n", request.GetMsgUUID())
 	fmt.Printf("模块: %s\n", request.GetModule())
 	fmt.Printf("路由: %s\n", request.GetRoute())
 
@@ -116,7 +116,7 @@ func (c *ExampleRequestController) HandleUserLogin(request *core.TykeRequest, re
 
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
-	response.SetMsgUuid(request.GetMsgUuid())
+	response.SetMsgUUID(request.GetMsgUUID())
 
 	c.logResponse(response, "HandleUserLogin")
 }
@@ -134,7 +134,7 @@ func (c *ExampleRequestController) HandleUserLogout(request *core.TykeRequest, r
 	response.SetResult(200, "OK")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
-	response.SetMsgUuid(request.GetMsgUuid())
+	response.SetMsgUUID(request.GetMsgUUID())
 
 	c.logResponse(response, "HandleUserLogout")
 }
@@ -157,7 +157,7 @@ func (c *ExampleRequestController) HandleDataQuery(request *core.TykeRequest, re
 	response.SetResult(200, "OK")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
-	response.SetMsgUuid(request.GetMsgUuid())
+	response.SetMsgUUID(request.GetMsgUUID())
 
 	c.logResponse(response, "HandleDataQuery")
 }
@@ -181,7 +181,7 @@ func (c *ExampleRequestController) HandleDataUpdate(request *core.TykeRequest, r
 	response.SetResult(200, "OK")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
-	response.SetMsgUuid(request.GetMsgUuid())
+	response.SetMsgUUID(request.GetMsgUUID())
 
 	c.logResponse(response, "HandleDataUpdate")
 }
@@ -193,7 +193,7 @@ func (c *ExampleRequestController) HandleAsyncProcess(request *core.TykeRequest,
 		"success":    true,
 		"task_id":    fmt.Sprintf("task_%d", time.Now().UnixMilli()),
 		"status":     "processing",
-		"async_uuid": request.GetAsyncUuid(),
+		"async_uuid": request.GetAsyncUUID(),
 	}
 
 	responseBytes, _ := json.Marshal(responseData)
@@ -201,8 +201,8 @@ func (c *ExampleRequestController) HandleAsyncProcess(request *core.TykeRequest,
 	response.SetResult(202, "Accepted")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
-	response.SetMsgUuid(request.GetMsgUuid())
-	response.SetAsyncUuid(request.GetAsyncUuid())
+	response.SetMsgUUID(request.GetMsgUUID())
+	response.SetAsyncUUID(request.GetAsyncUUID())
 
 	c.logResponse(response, "HandleAsyncProcess")
 }

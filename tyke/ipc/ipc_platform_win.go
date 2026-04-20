@@ -17,15 +17,15 @@ import (
 
 type clientConnectionImplWin struct {
 	conn   net.Conn
-	cipher *AesGcmCipher
+	cipher *AESGCMCipher
 }
 
-func newClientConnectionImplWin() IClientConnectionImpl {
-	return &clientConnectionImplWin{cipher: NewAesGcmCipher()}
+func newClientConnectionImplWin() ClientConnection {
+	return &clientConnectionImplWin{cipher: NewAESGCMCipher()}
 }
 
-func (c *clientConnectionImplWin) Connect(serverName string, timeoutMs uint32, rwTimeoutMs uint32) common.BoolResult {
-	common.LogInfo("ipc client connecting to", "server_name", serverName)
+func (c *clientConnectionImplWin) Connect(serverName string, timeoutMs uint32) common.BoolResult {
+	common.LogInfo("IPC client connecting", "server_name", serverName)
 	pipePath := `\\.\pipe\` + serverName
 	timeout := time.Duration(timeoutMs) * time.Millisecond
 	deadline := time.Now().Add(timeout)
@@ -112,7 +112,7 @@ func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, time
 }
 
 func (c *clientConnectionImplWin) Close() {
-	common.LogInfo("ipc client closing connection")
+	common.LogInfo("IPC client closing connection")
 	if c.conn != nil {
 		c.conn.Close()
 		c.conn = nil
@@ -124,7 +124,7 @@ func (c *clientConnectionImplWin) IsValid() bool {
 }
 
 func (c *clientConnectionImplWin) doHandshake(timeoutMs uint32) common.BoolResult {
-	ecdh := NewEcdhKeyExchange()
+	ecdh := NewECDHKeyExchange()
 	if genResult := ecdh.GenerateKey(); !genResult.HasValue() {
 		return common.ErrBool("handshake: key generation failed: " + genResult.Err)
 	}
@@ -183,8 +183,8 @@ const (
 type clientContext struct {
 	conn         net.Conn
 	state        clientState
-	ecdh         *EcdhKeyExchange
-	cipher       *AesGcmCipher
+	ecdh         *ECDHKeyExchange
+	cipher       *AESGCMCipher
 	rawRecvBuf   []byte
 	writeMu      sync.Mutex
 	pendingWrite []byte
@@ -199,12 +199,12 @@ type serverImplWin struct {
 	callback   ServerRecvDataCallback
 }
 
-func newServerImplWin() IServerImpl {
+func newServerImplWin() Server {
 	return &serverImplWin{clients: make(map[ClientId]*clientContext)}
 }
 
 func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback) common.BoolResult {
-	common.LogInfo("ipc server starting on", "server_name", serverName)
+	common.LogInfo("IPC server starting", "server_name", serverName)
 	if s.running {
 		return common.ErrBool("server already running")
 	}
@@ -237,8 +237,8 @@ func (s *serverImplWin) acceptLoop() {
 		ctx := &clientContext{
 			conn:   conn,
 			state:  stateWaitHello,
-			ecdh:   NewEcdhKeyExchange(),
-			cipher: NewAesGcmCipher(),
+			ecdh:   NewECDHKeyExchange(),
+			cipher: NewAESGCMCipher(),
 		}
 		cid := clientIdCounter
 		clientIdCounter++
@@ -383,10 +383,10 @@ func (s *serverImplWin) SendToClient(id ClientId, data []byte) common.BoolResult
 	return common.OkBool(true)
 }
 
-func createClientConnectionImpl() IClientConnectionImpl {
+func createClientConnectionImpl() ClientConnection {
 	return newClientConnectionImplWin()
 }
 
-func createServerImpl() IServerImpl {
+func createServerImpl() Server {
 	return newServerImplWin()
 }

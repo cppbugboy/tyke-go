@@ -8,6 +8,7 @@ import (
 
 type SendDataHandler func(clientId ipc.ClientId, data []byte) bool
 
+// TykeResponse 表示一个 IPC 响应对象，用于回复请求。
 type TykeResponse struct {
 	protocolHeader  common.ProtocolHeader
 	metadata        ResponseMetadata
@@ -24,18 +25,15 @@ var responsePool = component.NewObjectPool(func() *TykeResponse {
 	}
 })
 
+// NewTykeResponse 创建一个新的 TykeResponse 实例。
 func NewTykeResponse() *TykeResponse {
 	return responsePool.Acquire()
 }
 
-func AcquireResponse() *TykeResponse {
-	common.LogDebug("Acquiring response object from pool")
-	return NewTykeResponse()
-}
-
+// ReleaseResponse 将 TykeResponse 实例归还到对象池。
 func ReleaseResponse(resp *TykeResponse) {
 	if resp != nil {
-		common.LogDebug("Releasing response object to pool", "msg_uuid", resp.GetMsgUuid())
+		common.LogDebug("Releasing response object to pool", "msg_uuid", resp.GetMsgUUID())
 		resp.Reset()
 		responsePool.Release(resp)
 	}
@@ -72,13 +70,13 @@ func (r *TykeResponse) GetModule() string {
 	return r.metadata.GetModule()
 }
 
-func (r *TykeResponse) SetMsgUuid(msgUuid string) *TykeResponse {
-	r.metadata.SetMsgUuid(msgUuid)
+func (r *TykeResponse) SetMsgUUID(msgUuid string) *TykeResponse {
+	r.metadata.SetMsgUUID(msgUuid)
 	return r
 }
 
-func (r *TykeResponse) GetMsgUuid() string {
-	return r.metadata.GetMsgUuid()
+func (r *TykeResponse) GetMsgUUID() string {
+	return r.metadata.GetMsgUUID()
 }
 
 func (r *TykeResponse) SetRoute(route string) *TykeResponse {
@@ -117,13 +115,13 @@ func (r *TykeResponse) GetResult() (int, string) {
 	return r.metadata.GetStatus(), r.metadata.GetReason()
 }
 
-func (r *TykeResponse) SetAsyncUuid(asyncUuid string) *TykeResponse {
-	r.metadata.AsyncUuid = asyncUuid
+func (r *TykeResponse) SetAsyncUUID(asyncUuid string) *TykeResponse {
+	r.metadata.AsyncUUID = asyncUuid
 	return r
 }
 
-func (r *TykeResponse) GetAsyncUuid() string {
-	return r.metadata.AsyncUuid
+func (r *TykeResponse) GetAsyncUUID() string {
+	return r.metadata.AsyncUUID
 }
 
 func (r *TykeResponse) SetSendDataHandler(handler SendDataHandler) *TykeResponse {
@@ -137,13 +135,13 @@ func (r *TykeResponse) SetClientId(clientId ipc.ClientId) *TykeResponse {
 }
 
 func (r *TykeResponse) Send() common.BoolResult {
-	common.LogDebug("Send", "route", r.GetRoute(), "msg_uuid", r.GetMsgUuid())
+	common.LogDebug("Send", "route", r.GetRoute(), "msg_uuid", r.GetMsgUUID())
 	if r.isSend {
-		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUuid())
+		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUUID())
 		return common.ErrBool("response already sent")
 	}
 	if r.sendDataHandler == nil {
-		common.LogError("Send data handler is not set", "msg_uuid", r.GetMsgUuid())
+		common.LogError("Send data handler is not set", "msg_uuid", r.GetMsgUUID())
 		return common.ErrBool("send data handler is not set")
 	}
 	r.metadata.SetTimestamp(common.GenerateTimestamp())
@@ -153,18 +151,18 @@ func (r *TykeResponse) Send() common.BoolResult {
 		return common.ErrBool("encode response failed")
 	}
 	if !r.sendDataHandler(r.clientId, dataVec) {
-		common.LogError("Send data handler failed", "msg_uuid", r.GetMsgUuid())
+		common.LogError("Send data handler failed", "msg_uuid", r.GetMsgUUID())
 		return common.ErrBool("send data handler failed")
 	}
 	r.isSend = true
-	common.LogDebug("Response sent successfully", "msg_uuid", r.GetMsgUuid())
+	common.LogDebug("Response sent successfully", "msg_uuid", r.GetMsgUUID())
 	return common.OkBool(true)
 }
 
 func (r *TykeResponse) SendAsync() common.BoolResult {
-	common.LogDebug("SendAsync", "route", r.GetRoute(), "msg_uuid", r.GetMsgUuid(), "asyncUuid", r.metadata.AsyncUuid)
+	common.LogDebug("SendAsync", "route", r.GetRoute(), "msg_uuid", r.GetMsgUUID(), "asyncUuid", r.metadata.AsyncUUID)
 	if r.isSend {
-		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUuid())
+		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUUID())
 		return common.ErrBool("response already sent")
 	}
 	r.metadata.SetTimestamp(common.GenerateTimestamp())
@@ -173,12 +171,12 @@ func (r *TykeResponse) SendAsync() common.BoolResult {
 		common.LogError("Encode response failed", "error", err)
 		return common.ErrBool("encode response failed")
 	}
-	sendResult := ipc.IpcClientSendAsync(r.metadata.AsyncUuid, dataVec)
+	sendResult := ipc.IPCClientSendAsync(r.metadata.AsyncUUID, dataVec)
 	if !sendResult.HasValue() {
 		common.LogError("Send async failed", "error", sendResult.Err)
 		return common.ErrBool("send async failed: " + sendResult.Err)
 	}
 	r.isSend = true
-	common.LogDebug("Async response sent successfully", "msg_uuid", r.GetMsgUuid())
+	common.LogDebug("Async response sent successfully", "msg_uuid", r.GetMsgUUID())
 	return common.OkBool(true)
 }

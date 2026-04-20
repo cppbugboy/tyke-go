@@ -6,10 +6,11 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
+// MetadataBase 提供请求/响应元数据的公共字段和方法。
 type MetadataBase struct {
 	Module      string                      `json:"module"`
-	AsyncUuid   string                      `json:"async_uuid"`
-	MsgUuid     string                      `json:"msg_uuid"`
+	AsyncUUID   string                      `json:"async_uuid"`
+	MsgUUID     string                      `json:"msg_uuid"`
 	Route       string                      `json:"route"`
 	ContentType string                      `json:"content_type"`
 	Timestamp   string                      `json:"timestamp"`
@@ -29,21 +30,21 @@ func (m *MetadataBase) SetModule(module string) *MetadataBase {
 	return m
 }
 
-func (m *MetadataBase) GetAsyncUuid() string {
-	return m.AsyncUuid
+func (m *MetadataBase) GetAsyncUUID() string {
+	return m.AsyncUUID
 }
 
-func (m *MetadataBase) SetAsyncUuid(asyncUuid string) *MetadataBase {
-	m.AsyncUuid = asyncUuid
+func (m *MetadataBase) SetAsyncUUID(asyncUuid string) *MetadataBase {
+	m.AsyncUUID = asyncUuid
 	return m
 }
 
-func (m *MetadataBase) GetMsgUuid() string {
-	return m.MsgUuid
+func (m *MetadataBase) GetMsgUUID() string {
+	return m.MsgUUID
 }
 
-func (m *MetadataBase) SetMsgUuid(msgUuid string) *MetadataBase {
-	m.MsgUuid = msgUuid
+func (m *MetadataBase) SetMsgUUID(msgUuid string) *MetadataBase {
+	m.MsgUUID = msgUuid
 	return m
 }
 

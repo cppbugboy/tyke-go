@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/tyke/tyke/tyke/common"
@@ -9,13 +8,14 @@ import (
 	"github.com/tyke/tyke/tyke/ipc"
 )
 
+// TykeFramework 是框架的主入口，管理生命周期和配置。
 type TykeFramework struct {
 	threadPoolCount uint32
 	logPath         string
 	logLevel        string
 	fileSizeMb      uint32
 	fileCount       uint32
-	ipcServer       *ipc.IpcServer
+	ipcServer       *ipc.IPCServer
 }
 
 var (
@@ -23,6 +23,7 @@ var (
 	frameworkOnce     sync.Once
 )
 
+// App 返回 TykeFramework 单例实例。
 func App() *TykeFramework {
 	frameworkOnce.Do(func() {
 		frameworkInstance = &TykeFramework{
@@ -30,7 +31,7 @@ func App() *TykeFramework {
 			logLevel:        "info",
 			fileSizeMb:      1024,
 			fileCount:       5,
-			ipcServer:       ipc.NewIpcServer(),
+			ipcServer:       ipc.NewIPCServer(),
 		}
 	})
 	return frameworkInstance
@@ -48,7 +49,7 @@ func (f *TykeFramework) SetLogConfig(logPath string, logLevel string, fileSizeMb
 	f.fileCount = fileCount
 	logInstance := GetTykeLogInstance()
 	if result := logInstance.Init(logPath, logLevel, fileSizeMb, fileCount); !result.HasValue() {
-		fmt.Printf("Tyke framework initialization failed: %s\n", logPath)
+		common.LogError("Tyke framework initialization failed", "log_path", logPath)
 	}
 	return f
 }
@@ -61,7 +62,7 @@ func (f *TykeFramework) Start(listenUuid string) common.BoolResult {
 			logPath = common.GetTempDir() + "/tyke.log"
 		}
 		if result := logInstance.Init(logPath, f.logLevel, f.fileSizeMb, f.fileCount); !result.HasValue() {
-			fmt.Printf("Tyke framework start failed: %s\n", logPath)
+			common.LogError("Tyke framework start failed", "log_path", logPath)
 			return common.ErrBool("log init failed")
 		}
 	}

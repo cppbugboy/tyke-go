@@ -15,14 +15,23 @@ func logWithSource(level slog.Level, msg string, args ...any) {
 }
 
 func LogDebug(msg string, args ...any) {
+	if !slog.Default().Enabled(nil, slog.LevelDebug) {
+		return
+	}
 	logWithSource(slog.LevelDebug, msg, args...)
 }
 
 func LogInfo(msg string, args ...any) {
+	if !slog.Default().Enabled(nil, slog.LevelInfo) {
+		return
+	}
 	logWithSource(slog.LevelInfo, msg, args...)
 }
 
 func LogWarn(msg string, args ...any) {
+	if !slog.Default().Enabled(nil, slog.LevelWarn) {
+		return
+	}
 	logWithSource(slog.LevelWarn, msg, args...)
 }
 

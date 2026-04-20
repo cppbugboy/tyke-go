@@ -17,7 +17,6 @@ func GenerateUUID() string {
 	b[8] = (b[8] & 0x3f) | 0x80
 	uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-	LogDebug("generated uuid", "uuid", uuid)
 	return uuid
 }
 
@@ -28,9 +27,7 @@ func GenerateTimestamp() string {
 }
 
 func IsValidUUID(uuid string) bool {
-	valid := uuidRegex.MatchString(uuid)
-	LogDebug("uuid validation", "uuid", uuid, "valid", valid)
-	return valid
+	return uuidRegex.MatchString(uuid)
 }
 
 func GetTempDir() string {

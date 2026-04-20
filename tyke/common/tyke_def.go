@@ -4,7 +4,8 @@ const (
 	DefaultTimeoutMs      = 5000
 	DefaultBufferSize     = 4096
 	DefaultThreadPoolSize = 4
-	ProtocolHeaderSize    = 28
+	// ProtocolHeaderSize 是协议头的固定字节大小。
+	ProtocolHeaderSize = 28
 
 	AesGcmIvLen          = 12
 	AesGcmTagLen         = 16
@@ -14,8 +15,10 @@ const (
 	HttpStatusTimeout    = 408
 )
 
+// ProtocolMagic 是 Tyke 协议的魔数标识。
 var ProtocolMagic = [4]byte{'T', 'Y', 'K', 'E'}
 
+// ContentType 定义了消息内容的编码格式。
 type ContentType int
 
 const (
@@ -30,6 +33,7 @@ var ContentTypeMap = map[ContentType]string{
 	ContentTypeBinary: "binary",
 }
 
+// MessageType 定义了 IPC 消息的类型枚举。
 type MessageType uint32
 
 const (
@@ -44,6 +48,7 @@ const (
 	MessageTypeResponseAsyncFuture MessageType = 8
 )
 
+// ProtocolHeader 定义了 Tyke IPC 协议的头部结构，包含魔数、消息类型和长度信息。
 type ProtocolHeader struct {
 	Magic       [4]byte
 	MsgType     MessageType

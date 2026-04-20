@@ -27,8 +27,8 @@ func printRequestHeader(title string, targetUuid string, request *core.TykeReque
 	fmt.Printf("目标UUID: %s\n", targetUuid)
 	fmt.Printf("模块: %s\n", request.GetModule())
 	fmt.Printf("路由: %s\n", request.GetRoute())
-	if request.GetAsyncUuid() != "" {
-		fmt.Printf("异步UUID: %s\n", request.GetAsyncUuid())
+	if request.GetAsyncUUID() != "" {
+		fmt.Printf("异步UUID: %s\n", request.GetAsyncUUID())
 	}
 
 	contentType, content := request.GetContent()
@@ -71,7 +71,7 @@ func printAsyncResponse(response *core.TykeResponse, methodName string) {
 	fmt.Printf("----------------------------------------\n")
 	fmt.Printf("[%s] 收到异步响应 (%s)\n", now.Format("2006-01-02 15:04:05"), methodName)
 	fmt.Printf("----------------------------------------\n")
-	fmt.Printf("消息UUID: %s\n", response.GetMsgUuid())
+	fmt.Printf("消息UUID: %s\n", response.GetMsgUUID())
 	fmt.Printf("状态码: %d\n", status)
 	fmt.Printf("原因: %s\n", reason)
 	fmt.Printf("模块: %s\n", response.GetModule())
@@ -124,7 +124,7 @@ func demoSendAsync() {
 
 	request.SetModule("data_service")
 	request.SetRoute("/api/async/process")
-	request.SetAsyncUuid(clientListenerUuid)
+	request.SetAsyncUUID(clientListenerUuid)
 
 	processData := map[string]interface{}{
 		"task_type": "background_process",
@@ -151,7 +151,7 @@ func demoSendAsyncWithFunc() {
 
 	request.SetModule("data_service")
 	request.SetRoute("/api/async/process")
-	request.SetAsyncUuid(clientListenerUuid)
+	request.SetAsyncUUID(clientListenerUuid)
 
 	processData := map[string]interface{}{
 		"task_type": "callback_process",
@@ -181,7 +181,7 @@ func demoSendAsyncWithFuture() {
 
 	request.SetModule("data_service")
 	request.SetRoute("/api/async/process")
-	request.SetAsyncUuid(clientListenerUuid)
+	request.SetAsyncUUID(clientListenerUuid)
 
 	processData := map[string]interface{}{
 		"task_type": "future_process",

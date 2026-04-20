@@ -51,15 +51,17 @@ func ExtractFrame(buffer *[]byte) (byte, []byte, error) {
 	return frameType, payload, nil
 }
 
-type EcdhKeyExchange struct {
+// ECDHKeyExchange 实现 ECDH 密钥交换算法，用于建立共享密钥。
+type ECDHKeyExchange struct {
 	privateKey *ecdh.PrivateKey
 }
 
-func NewEcdhKeyExchange() *EcdhKeyExchange {
-	return &EcdhKeyExchange{}
+// NewECDHKeyExchange 创建一个新的 ECDHKeyExchange 实例。
+func NewECDHKeyExchange() *ECDHKeyExchange {
+	return &ECDHKeyExchange{}
 }
 
-func (e *EcdhKeyExchange) GenerateKey() common.BoolResult {
+func (e *ECDHKeyExchange) GenerateKey() common.BoolResult {
 	privateKey, err := ecdh.P256().GenerateKey(rand.Reader)
 	if err != nil {
 		common.LogError("ECDH key generation failed", "error", err)
@@ -70,7 +72,7 @@ func (e *EcdhKeyExchange) GenerateKey() common.BoolResult {
 	return common.OkBool(true)
 }
 
-func (e *EcdhKeyExchange) GetPublicKeyDer() common.ByteVecResult {
+func (e *ECDHKeyExchange) GetPublicKeyDer() common.ByteVecResult {
 	if e.privateKey == nil {
 		return common.ErrByteVec("no ECDH key available")
 	}
@@ -83,7 +85,7 @@ func (e *EcdhKeyExchange) GetPublicKeyDer() common.ByteVecResult {
 	return common.OkByteVec(derBytes)
 }
 
-func (e *EcdhKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecResult {
+func (e *ECDHKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecResult {
 	if e.privateKey == nil {
 		return common.ErrByteVec("no ECDH key available")
 	}
@@ -115,16 +117,18 @@ func (e *EcdhKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecR
 	return common.OkByteVec(secret)
 }
 
-type AesGcmCipher struct {
+// AESGCMCipher 实现 AES-GCM 加密算法，用于数据加密和解密。
+type AESGCMCipher struct {
 	aesKey      []byte
 	initialized bool
 }
 
-func NewAesGcmCipher() *AesGcmCipher {
-	return &AesGcmCipher{}
+// NewAESGCMCipher 创建一个新的 AESGCMCipher 实例。
+func NewAESGCMCipher() *AESGCMCipher {
+	return &AESGCMCipher{}
 }
 
-func (c *AesGcmCipher) Init(sharedSecret []byte) common.BoolResult {
+func (c *AESGCMCipher) Init(sharedSecret []byte) common.BoolResult {
 	if len(sharedSecret) == 0 {
 		return common.ErrBool("shared secret is empty")
 	}
@@ -135,11 +139,11 @@ func (c *AesGcmCipher) Init(sharedSecret []byte) common.BoolResult {
 	return common.OkBool(true)
 }
 
-func (c *AesGcmCipher) IsInitialized() bool {
+func (c *AESGCMCipher) IsInitialized() bool {
 	return c.initialized
 }
 
-func (c *AesGcmCipher) Encrypt(plaintext []byte) common.ByteVecResult {
+func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
 	if !c.initialized {
 		return common.ErrByteVec("cipher not initialized")
 	}
@@ -165,7 +169,7 @@ func (c *AesGcmCipher) Encrypt(plaintext []byte) common.ByteVecResult {
 	return common.OkByteVec(result)
 }
 
-func (c *AesGcmCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
+func (c *AESGCMCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
 	if !c.initialized {
 		return common.ErrByteVec("cipher not initialized")
 	}

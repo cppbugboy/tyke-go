@@ -2,33 +2,35 @@ package ipc
 
 import "github.com/tyke/tyke/tyke/common"
 
-type IpcServer struct {
-	impl IServerImpl
+// IPCServer 是 IPC 服务器端，监听客户端连接并处理数据。
+type IPCServer struct {
+	impl Server
 }
 
-func NewIpcServer() *IpcServer {
-	common.LogDebug("IpcServer constructed")
-	return &IpcServer{impl: createServerImpl()}
+// NewIPCServer 创建一个新的 IPCServer 实例。
+func NewIPCServer() *IPCServer {
+	common.LogDebug("IPCServer constructed")
+	return &IPCServer{impl: createServerImpl()}
 }
 
-func (s *IpcServer) Start(serverName string, callback ServerRecvDataCallback) common.BoolResult {
-	common.LogInfo("IpcServer starting", "server_name", serverName)
+func (s *IPCServer) Start(serverName string, callback ServerRecvDataCallback) common.BoolResult {
+	common.LogInfo("IPC server starting", "server_name", serverName)
 	result := s.impl.Start(serverName, callback)
 	if !result.HasValue() {
-		common.LogError("IpcServer start failed", "error", result.Err)
+		common.LogError("IPC server start failed", "error", result.Err)
 		return common.ErrBool("server start failed: " + result.Err)
 	}
-	common.LogInfo("IpcServer started successfully")
+	common.LogInfo("IPC server started successfully")
 	return common.OkBool(true)
 }
 
-func (s *IpcServer) Stop() {
-	common.LogInfo("IpcServer stopping")
+func (s *IPCServer) Stop() {
+	common.LogInfo("IPC server stopping")
 	s.impl.Stop()
-	common.LogInfo("IpcServer stopped")
+	common.LogInfo("IPC server stopped")
 }
 
-func (s *IpcServer) SendToClient(id ClientId, data []byte) common.BoolResult {
+func (s *IPCServer) SendToClient(id ClientId, data []byte) common.BoolResult {
 	common.LogDebug("SendToClient", "client_id", id, "data_size", len(data))
 	result := s.impl.SendToClient(id, data)
 	if !result.HasValue() {

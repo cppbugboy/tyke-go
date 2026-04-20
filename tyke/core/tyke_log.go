@@ -9,6 +9,7 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
+// TykeLog 是日志系统的管理器，负责初始化和配置日志输出。
 type TykeLog struct {
 	logger      *slog.Logger
 	file        *os.File

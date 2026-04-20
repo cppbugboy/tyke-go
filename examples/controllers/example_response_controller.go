@@ -35,7 +35,7 @@ func (c *ExampleResponseController) logResponse(response *core.TykeResponse, han
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("[%s] 响应处理器: %s\n", now.Format("2006-01-02 15:04:05"), handlerName)
 	fmt.Printf("========================================\n")
-	fmt.Printf("消息UUID: %s\n", response.GetMsgUuid())
+	fmt.Printf("消息UUID: %s\n", response.GetMsgUUID())
 	fmt.Printf("状态码: %d\n", status)
 	fmt.Printf("原因: %s\n", reason)
 	fmt.Printf("模块: %s\n", response.GetModule())

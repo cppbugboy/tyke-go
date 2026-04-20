@@ -9,18 +9,22 @@ import (
 )
 
 func EncodeRequest(request *TykeRequest) ([]byte, error) {
+	common.LogInfo("Encoding request", "route", request.GetRoute())
 	return encodeRequest(request)
 }
 
 func DecodeRequest(dataVec []byte, request *TykeRequest, dataSize *uint32) bool {
+	common.LogInfo("Decoding request", "size", len(dataVec))
 	return decode(dataVec, request, dataSize)
 }
 
 func EncodeResponse(response *TykeResponse) ([]byte, error) {
+	common.LogInfo("Encoding response", "route", response.GetRoute())
 	return encodeResponse(response)
 }
 
 func DecodeResponse(dataVec []byte, response *TykeResponse, dataSize *uint32) bool {
+	common.LogInfo("Decoding response", "size", len(dataVec))
 	return decode(dataVec, response, dataSize)
 }
 

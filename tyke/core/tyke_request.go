@@ -8,6 +8,7 @@ import (
 	"github.com/tyke/tyke/tyke/ipc"
 )
 
+// TykeRequest 表示一个 IPC 请求对象，支持同步和异步发送。
 type TykeRequest struct {
 	protocolHeader common.ProtocolHeader
 	metadata       RequestMetadata
@@ -21,13 +22,16 @@ var requestPool = component.NewObjectPool(func() *TykeRequest {
 	}
 })
 
+// AcquireRequest 从对象池获取一个 TykeRequest 实例。
 func AcquireRequest() *TykeRequest {
+	common.LogDebug("Acquiring request from pool")
 	return requestPool.Acquire()
 }
 
+// ReleaseRequest 将 TykeRequest 实例归还到对象池。
 func ReleaseRequest(req *TykeRequest) {
 	if req != nil {
-		common.LogDebug("Releasing request object to pool", "msg_uuid", req.GetMsgUuid())
+		common.LogDebug("Releasing request object to pool", "msg_uuid", req.GetMsgUUID())
 		req.Reset()
 		requestPool.Release(req)
 	}
@@ -75,17 +79,17 @@ func (r *TykeRequest) GetRoute() string {
 	return r.metadata.GetRoute()
 }
 
-func (r *TykeRequest) GetMsgUuid() string {
-	return r.metadata.GetMsgUuid()
+func (r *TykeRequest) GetMsgUUID() string {
+	return r.metadata.GetMsgUUID()
 }
 
-func (r *TykeRequest) SetAsyncUuid(asyncUuid string) *TykeRequest {
-	r.metadata.SetAsyncUuid(asyncUuid)
+func (r *TykeRequest) SetAsyncUUID(asyncUuid string) *TykeRequest {
+	r.metadata.SetAsyncUUID(asyncUuid)
 	return r
 }
 
-func (r *TykeRequest) GetAsyncUuid() string {
-	return r.metadata.GetAsyncUuid()
+func (r *TykeRequest) GetAsyncUUID() string {
+	return r.metadata.GetAsyncUUID()
 }
 
 func (r *TykeRequest) AddMetadata(key string, value common.JsonValue) common.BoolResult {
@@ -104,7 +108,7 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse, timeoutMs ..
 	common.LogDebug("Send", "send_uuid", sendUuid, "route", r.GetRoute(), "timeout", tm)
 
 	r.protocolHeader.MsgType = common.MessageTypeRequest
-	r.metadata.SetMsgUuid(common.GenerateUUID()).SetTimestamp(common.GenerateTimestamp())
+	r.metadata.SetMsgUUID(common.GenerateUUID()).SetTimestamp(common.GenerateTimestamp())
 
 	dataVec, err := EncodeRequest(r)
 	if err != nil {
@@ -112,7 +116,7 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse, timeoutMs ..
 		return common.ErrBool("encode request failed")
 	}
 
-	sendResult := ipc.IpcClientSend(sendUuid, dataVec, func(recvData []byte) bool {
+	sendResult := ipc.IPCClientSend(sendUuid, dataVec, func(recvData []byte) bool {
 		var dataSize uint32
 		decodeResult := DecodeResponse(recvData, response, &dataSize)
 		return decodeResult
@@ -122,7 +126,7 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse, timeoutMs ..
 		return common.ErrBool("send request failed: " + sendResult.Err)
 	}
 
-	common.LogDebug("Sync request completed", "msg_uuid", r.GetMsgUuid())
+	common.LogDebug("Sync request completed", "msg_uuid", r.GetMsgUUID())
 	return common.OkBool(true)
 }
 
@@ -138,8 +142,8 @@ func (r *TykeRequest) SendAsyncWithFunc(sendUuid string, fn func(*TykeResponse),
 	common.LogDebug("SendAsyncWithFunc", "send_uuid", sendUuid, "route", r.GetRoute(), "timeout", tm)
 	result := r.encodeAndSend(sendUuid, common.MessageTypeRequestAsyncFunc, timeoutMs...)
 	if result.HasValue() {
-		RequestStubAddFunc(r.metadata.GetMsgUuid(), fn, tm)
-		common.LogDebug("Async callback registered", "msg_uuid", r.GetMsgUuid())
+		RequestStubAddFunc(r.metadata.GetMsgUUID(), fn, tm)
+		common.LogDebug("Async callback registered", "msg_uuid", r.GetMsgUUID())
 	}
 	return result
 }
@@ -155,9 +159,9 @@ func (r *TykeRequest) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) 
 		return ResponseFuture{}, fmt.Errorf("%s", result.Err)
 	}
 	ch := make(chan *TykeResponse, 1)
-	RequestStubAddFuture(r.metadata.GetMsgUuid(), ch, tm)
-	future := NewResponseFuture(r.metadata.GetMsgUuid(), ch)
-	common.LogDebug("Future registered", "msg_uuid", r.GetMsgUuid())
+	RequestStubAddFuture(r.metadata.GetMsgUUID(), ch, tm)
+	future := NewResponseFuture(r.metadata.GetMsgUUID(), ch)
+	common.LogDebug("Future registered", "msg_uuid", r.GetMsgUUID())
 	return future, nil
 }
 
@@ -168,7 +172,7 @@ func (r *TykeRequest) encodeAndSend(sendUuid string, msgType common.MessageType,
 	}
 	common.LogDebug("EncodeAndSend", "send_uuid", sendUuid, "route", r.GetRoute(), "msg_type", int(msgType), "timeout", tm)
 	r.protocolHeader.MsgType = msgType
-	r.metadata.SetMsgUuid(common.GenerateUUID()).SetTimestamp(common.GenerateTimestamp())
+	r.metadata.SetMsgUUID(common.GenerateUUID()).SetTimestamp(common.GenerateTimestamp())
 
 	dataVec, err := EncodeRequest(r)
 	if err != nil {
@@ -176,12 +180,12 @@ func (r *TykeRequest) encodeAndSend(sendUuid string, msgType common.MessageType,
 		return common.ErrBool("encode request failed")
 	}
 
-	sendResult := ipc.IpcClientSendAsync(sendUuid, dataVec, tm)
+	sendResult := ipc.IPCClientSendAsync(sendUuid, dataVec, tm)
 	if !sendResult.HasValue() {
 		common.LogError("Send request failed", "error", sendResult.Err)
 		return common.ErrBool("send request failed: " + sendResult.Err)
 	}
 
-	common.LogDebug("Request sent successfully", "msg_uuid", r.GetMsgUuid())
+	common.LogDebug("Request sent successfully", "msg_uuid", r.GetMsgUUID())
 	return common.OkBool(true)
 }

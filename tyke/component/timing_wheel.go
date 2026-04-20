@@ -39,6 +39,7 @@ type TimingWheelConfig struct {
 	Levels []TimingWheelLevelConfig
 }
 
+// TimingWheel 是多级时间轮，用于高效的定时任务管理。
 type TimingWheel struct {
 	levels       []TimingWheelLevel
 	stopCh       chan struct{}

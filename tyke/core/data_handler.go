@@ -1,3 +1,4 @@
+// Package core 实现了 Tyke 框架的核心功能，包括请求/响应处理、路由分发和数据编解码。
 package core
 
 import (
@@ -49,7 +50,7 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 		}
 
 	case common.MessageTypeResponseAsync, common.MessageTypeResponseAsyncFunc, common.MessageTypeResponseAsyncFuture:
-		response := AcquireResponse()
+		response := NewTykeResponse()
 		defer ReleaseResponse(response)
 		if DecodeResponse(dataVec, response, &used) {
 			common.LogDebug("Processing async response", "route", response.GetRoute())
@@ -64,16 +65,16 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 }
 
 func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler SendDataHandler) {
-	common.LogDebug("RequestHandler", "client_id", clientId, "route", request.GetRoute(), "msg_uuid", request.GetMsgUuid())
+	common.LogDebug("RequestHandler", "client_id", clientId, "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
-	response := AcquireResponse()
+	response := NewTykeResponse()
 	defer ReleaseResponse(response)
 	response.SetClientId(clientId).
 		SetMessageType(common.MessageTypeResponse).
 		SetModule(request.GetModule()).
-		SetMsgUuid(request.GetMsgUuid()).
+		SetMsgUUID(request.GetMsgUUID()).
 		SetRoute(request.GetRoute()).
-		SetAsyncUuid(request.GetAsyncUuid()).
+		SetAsyncUUID(request.GetAsyncUUID()).
 		SetSendDataHandler(sendDataHandler)
 
 	DispatchRequest(request, response)
@@ -84,13 +85,13 @@ func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler
 }
 
 func RequestHandlerAsync(request *TykeRequest) {
-	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUuid())
+	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
-	response := AcquireResponse()
+	response := NewTykeResponse()
 	defer ReleaseResponse(response)
-	response.SetAsyncUuid(request.GetAsyncUuid()).
+	response.SetAsyncUUID(request.GetAsyncUUID()).
 		SetModule(request.GetModule()).
-		SetMsgUuid(request.GetMsgUuid()).
+		SetMsgUUID(request.GetMsgUUID()).
 		SetRoute(request.GetRoute())
 
 	switch request.GetMessageType() {
@@ -110,7 +111,7 @@ func RequestHandlerAsync(request *TykeRequest) {
 }
 
 func ResponseHandler(response *TykeResponse) {
-	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUuid())
+	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 
 	switch response.GetMessageType() {
 	case common.MessageTypeResponseAsync:

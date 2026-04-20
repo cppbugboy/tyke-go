@@ -40,23 +40,23 @@ func RequestStubSetFuture(response *TykeResponse) {
 	found := false
 
 	uuidFutureMapMu.Lock()
-	if entry, ok := uuidFutureMap[response.GetMsgUuid()]; ok {
+	if entry, ok := uuidFutureMap[response.GetMsgUUID()]; ok {
 		extractedCh = entry.ch
-		delete(uuidFutureMap, response.GetMsgUuid())
+		delete(uuidFutureMap, response.GetMsgUUID())
 		found = true
-		common.LogDebug("Future result set", "uuid", response.GetMsgUuid())
+		common.LogDebug("Future result set", "uuid", response.GetMsgUUID())
 	} else {
-		common.LogWarn("Future entry not found for response", "uuid", response.GetMsgUuid())
+		common.LogWarn("Future entry not found for response", "uuid", response.GetMsgUUID())
 	}
 	uuidFutureMapMu.Unlock()
 
 	if found {
-		component.GetTimingWheel().RemoveTask(response.GetMsgUuid())
+		component.GetTimingWheel().RemoveTask(response.GetMsgUUID())
 		respCopy := *response
 		select {
 		case extractedCh <- &respCopy:
 		default:
-			common.LogWarn("Future channel full, dropping response", "uuid", response.GetMsgUuid())
+			common.LogWarn("Future channel full, dropping response", "uuid", response.GetMsgUUID())
 		}
 	}
 }
@@ -74,18 +74,18 @@ func RequestStubExecFunc(response *TykeResponse) {
 	found := false
 
 	uuidFuncMapMu.Lock()
-	if entry, ok := uuidFuncMap[response.GetMsgUuid()]; ok {
+	if entry, ok := uuidFuncMap[response.GetMsgUUID()]; ok {
 		extractedFn = entry.fn
-		delete(uuidFuncMap, response.GetMsgUuid())
+		delete(uuidFuncMap, response.GetMsgUUID())
 		found = true
 	} else {
-		common.LogWarn("Callback entry not found for response", "uuid", response.GetMsgUuid())
+		common.LogWarn("Callback entry not found for response", "uuid", response.GetMsgUUID())
 	}
 	uuidFuncMapMu.Unlock()
 
 	if found {
-		component.GetTimingWheel().RemoveTask(response.GetMsgUuid())
-		common.LogDebug("Executing callback for response", "uuid", response.GetMsgUuid())
+		component.GetTimingWheel().RemoveTask(response.GetMsgUUID())
+		common.LogDebug("Executing callback for response", "uuid", response.GetMsgUUID())
 		extractedFn(response)
 	}
 }
@@ -105,7 +105,7 @@ func RequestStubCleanupExpiredFuture(uuid string) {
 
 	if found {
 		timeoutResp := NewTykeResponse()
-		timeoutResp.SetMsgUuid(uuid)
+		timeoutResp.SetMsgUUID(uuid)
 		timeoutResp.SetResult(-1, "timeout")
 		select {
 		case extractedCh <- timeoutResp:

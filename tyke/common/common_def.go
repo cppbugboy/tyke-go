@@ -1,7 +1,9 @@
+// Package common 定义了 Tyke 框架的公共类型、常量和工具函数。
 package common
 
 import "encoding/json"
 
+// JsonValue 定义了 JSON 值的变体类型，支持多种基本数据类型。
 type JsonValue any
 
 func VariantToJson(v JsonValue) json.RawMessage {

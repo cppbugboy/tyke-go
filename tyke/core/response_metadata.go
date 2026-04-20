@@ -19,8 +19,8 @@ func NewResponseMetadata() ResponseMetadata {
 func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 	raw := map[string]any{
 		"module":       r.Module,
-		"async_uuid":   r.AsyncUuid,
-		"msg_uuid":     r.MsgUuid,
+		"async_uuid":   r.AsyncUUID,
+		"msg_uuid":     r.MsgUUID,
 		"route":        r.Route,
 		"content_type": r.ContentType,
 		"timestamp":    r.Timestamp,
@@ -41,8 +41,8 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.Module = jsonStringField(raw, "module")
-	r.AsyncUuid = jsonStringField(raw, "async_uuid")
-	r.MsgUuid = jsonStringField(raw, "msg_uuid")
+	r.AsyncUUID = jsonStringField(raw, "async_uuid")
+	r.MsgUUID = jsonStringField(raw, "msg_uuid")
 	r.Route = jsonStringField(raw, "route")
 	r.ContentType = jsonStringField(raw, "content_type")
 	r.Timestamp = jsonStringField(raw, "timestamp")
