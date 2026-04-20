@@ -17,16 +17,15 @@ type TykeResponse struct {
 	sendDataHandler SendDataHandler
 }
 
-var responsePool = component.NewObjectPool(func() TykeResponse {
-	return TykeResponse{
+var responsePool = component.NewObjectPool(func() *TykeResponse {
+	return &TykeResponse{
 		protocolHeader: common.ProtocolHeader{Magic: common.ProtocolMagic},
 		metadata:       NewResponseMetadata(),
 	}
 })
 
 func NewTykeResponse() *TykeResponse {
-	obj := responsePool.Acquire()
-	return &obj
+	return responsePool.Acquire()
 }
 
 func AcquireResponse() *TykeResponse {
@@ -38,8 +37,7 @@ func ReleaseResponse(resp *TykeResponse) {
 	if resp != nil {
 		common.LogDebug("Releasing response object to pool", "msg_uuid", resp.GetMsgUuid())
 		resp.Reset()
-		obj := *resp
-		responsePool.Release(obj)
+		responsePool.Release(resp)
 	}
 }
 

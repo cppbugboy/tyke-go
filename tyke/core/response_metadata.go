@@ -19,6 +19,7 @@ func NewResponseMetadata() ResponseMetadata {
 func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 	raw := map[string]any{
 		"module":       r.Module,
+		"async_uuid":   r.AsyncUuid,
 		"msg_uuid":     r.MsgUuid,
 		"route":        r.Route,
 		"content_type": r.ContentType,
@@ -40,6 +41,7 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	r.Module = jsonStringField(raw, "module")
+	r.AsyncUuid = jsonStringField(raw, "async_uuid")
 	r.MsgUuid = jsonStringField(raw, "msg_uuid")
 	r.Route = jsonStringField(raw, "route")
 	r.ContentType = jsonStringField(raw, "content_type")
@@ -76,7 +78,7 @@ func (r *ResponseMetadata) SetReason(reason string) *ResponseMetadata {
 }
 
 var ResponseMetadataKnownKeys = map[string]bool{
-	"module": true, "msg_uuid": true, "route": true,
+	"module": true, "async_uuid": true, "msg_uuid": true, "route": true,
 	"content_type": true, "timestamp": true, "status": true, "reason": true,
 }
 

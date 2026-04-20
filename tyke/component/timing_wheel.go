@@ -113,6 +113,7 @@ func (tw *TimingWheel) Init(config ...TimingWheelConfig) {
 	}
 
 	tw.taskLocation = make(map[string]string)
+	tw.stopCh = make(chan struct{})
 	tw.stopped.Store(false)
 	tw.initialized.Store(true)
 
@@ -155,10 +156,9 @@ func (tw *TimingWheel) RemoveTask(uuid string) {
 }
 
 func (tw *TimingWheel) Stop() {
-	if tw.stopped.Load() {
+	if !tw.initialized.Load() || tw.stopped.Swap(true) {
 		return
 	}
-	tw.stopped.Store(true)
 
 	close(tw.stopCh)
 	tw.wg.Wait()

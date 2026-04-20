@@ -14,24 +14,22 @@ type TykeRequest struct {
 	content        []byte
 }
 
-var requestPool = component.NewObjectPool(func() TykeRequest {
-	return TykeRequest{
+var requestPool = component.NewObjectPool(func() *TykeRequest {
+	return &TykeRequest{
 		protocolHeader: common.ProtocolHeader{Magic: common.ProtocolMagic},
 		metadata:       NewRequestMetadata(),
 	}
 })
 
 func AcquireRequest() *TykeRequest {
-	obj := requestPool.Acquire()
-	return &obj
+	return requestPool.Acquire()
 }
 
 func ReleaseRequest(req *TykeRequest) {
 	if req != nil {
 		common.LogDebug("Releasing request object to pool", "msg_uuid", req.GetMsgUuid())
 		req.Reset()
-		obj := *req
-		requestPool.Release(obj)
+		requestPool.Release(req)
 	}
 }
 

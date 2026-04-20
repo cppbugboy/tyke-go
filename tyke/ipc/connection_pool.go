@@ -35,7 +35,7 @@ type ConnectionPool struct {
 	idle             []*IpcConnection
 	active           int32
 	mu               sync.Mutex
-	cond             *sync.Cond
+	available        chan struct{}
 	stopCh           chan struct{}
 	wg               sync.WaitGroup
 	createConnection func() *IpcConnection
@@ -46,9 +46,9 @@ func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *Connecti
 		serverUuid: serverUuid,
 		config:     config,
 		stopCh:     make(chan struct{}),
+		available:  make(chan struct{}, 1),
 	}
 	p.createConnection = p.defaultCreateConnection
-	p.cond = sync.NewCond(&p.mu)
 
 	p.wg.Add(1)
 	go p.cleanupLoop()
@@ -59,7 +59,6 @@ func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *Connecti
 
 func (p *ConnectionPool) Acquire() (*IpcConnection, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	for {
 		for len(p.idle) > 0 {
@@ -69,6 +68,7 @@ func (p *ConnectionPool) Acquire() (*IpcConnection, error) {
 			if conn.IsValid() {
 				atomic.AddInt32(&p.active, 1)
 				conn.UpdateLastUsedTime()
+				p.mu.Unlock()
 				common.LogDebug("Acquired idle connection from pool", "server", p.serverUuid,
 					"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
 				return conn, nil
@@ -81,36 +81,29 @@ func (p *ConnectionPool) Acquire() (*IpcConnection, error) {
 			conn := p.createConnection()
 			if conn != nil {
 				atomic.AddInt32(&p.active, 1)
+				p.mu.Unlock()
 				common.LogDebug("Created new connection in pool", "server", p.serverUuid,
 					"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
 				return conn, nil
 			}
+			p.mu.Unlock()
 			return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
 		}
 
-		deadline := time.Now().Add(time.Duration(p.config.AcquireTimeoutMs) * time.Millisecond)
+		p.mu.Unlock()
 
 		timer := time.NewTimer(time.Duration(p.config.AcquireTimeoutMs) * time.Millisecond)
-		waitCh := make(chan struct{})
-		go func() {
-			<-timer.C
-			p.cond.Broadcast()
-			close(waitCh)
-		}()
-
-		p.cond.Wait()
-
-		timedOut := false
 		select {
-		case <-waitCh:
-			timedOut = true
-		default:
-		}
-		timer.Stop()
-
-		if timedOut || time.Now().After(deadline) {
+		case <-p.available:
+			timer.Stop()
+		case <-timer.C:
 			return nil, fmt.Errorf("acquire connection timeout, server=%s", p.serverUuid)
+		case <-p.stopCh:
+			timer.Stop()
+			return nil, fmt.Errorf("connection pool stopped, server=%s", p.serverUuid)
 		}
+
+		p.mu.Lock()
 	}
 }
 
@@ -141,7 +134,10 @@ func (p *ConnectionPool) Release(conn *IpcConnection, shouldReconnect bool) {
 	}
 
 	atomic.AddInt32(&p.active, -1)
-	p.cond.Signal()
+	select {
+	case p.available <- struct{}{}:
+	default:
+	}
 }
 
 func (p *ConnectionPool) GetIdleCount() int {
@@ -166,7 +162,10 @@ func (p *ConnectionPool) Stop() {
 	}
 
 	close(p.stopCh)
-	p.cond.Broadcast()
+	select {
+	case p.available <- struct{}{}:
+	default:
+	}
 	p.wg.Wait()
 
 	p.mu.Lock()

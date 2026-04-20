@@ -10,8 +10,9 @@ import (
 )
 
 type TykeLog struct {
-	logger *slog.Logger
-	file   *os.File
+	logger      *slog.Logger
+	file        *os.File
+	multiWriter io.Writer
 }
 
 var (
@@ -45,6 +46,7 @@ func (t *TykeLog) Init(logPath string, logLevel string, fileSizeMb uint32, fileC
 	}
 
 	multiWriter := io.MultiWriter(writers...)
+	t.multiWriter = multiWriter
 	handler := slog.NewTextHandler(multiWriter, &slog.HandlerOptions{Level: slog.LevelDebug})
 	t.logger = slog.New(handler)
 	slog.SetDefault(t.logger)
@@ -76,8 +78,11 @@ func (t *TykeLog) SetLogLevel(logLevel string) {
 	default:
 		level = slog.LevelInfo
 	}
-	t.logger = t.logger.With("level", level)
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+	w := t.multiWriter
+	if w == nil {
+		w = os.Stdout
+	}
+	handler := slog.NewTextHandler(w, &slog.HandlerOptions{Level: level})
 	t.logger = slog.New(handler)
 	slog.SetDefault(t.logger)
 }

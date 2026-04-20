@@ -55,14 +55,16 @@ func (tp *ThreadPool) Stop(waitForTasks bool) {
 		return
 	}
 	tp.started = false
-	tp.mu.Unlock()
 
-	if !waitForTasks {
-		drain := make(chan func())
-		close(drain)
-		tp.tasks = drain
-	} else {
+	if waitForTasks {
+		tp.mu.Unlock()
 		close(tp.tasks)
+	} else {
+		tasks := tp.tasks
+		tp.tasks = make(chan func(), 0)
+		close(tp.tasks)
+		tp.mu.Unlock()
+		close(tasks)
 	}
 	tp.wg.Wait()
 }
@@ -71,6 +73,13 @@ func (tp *ThreadPool) Enqueue(f func()) bool {
 	if tp.stopFlag.Load() {
 		return false
 	}
-	tp.tasks <- f
-	return true
+	tp.mu.Lock()
+	tasks := tp.tasks
+	tp.mu.Unlock()
+	select {
+	case tasks <- f:
+		return true
+	default:
+		return false
+	}
 }

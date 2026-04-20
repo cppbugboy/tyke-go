@@ -21,82 +21,105 @@ type funcEntry struct {
 }
 
 var (
-	uuidFutureMap   map[string]futureEntry
+	uuidFutureMap   = make(map[string]futureEntry)
 	uuidFutureMapMu sync.Mutex
-	uuidFuncMap     map[string]funcEntry
+	uuidFuncMap     = make(map[string]funcEntry)
 	uuidFuncMapMu   sync.Mutex
 )
 
-func init() {
-	uuidFutureMap = make(map[string]futureEntry)
-	uuidFuncMap = make(map[string]funcEntry)
-}
-
 func RequestStubAddFuture(uuid string, ch chan *TykeResponse, timeoutMs uint32) {
 	uuidFutureMapMu.Lock()
-	defer uuidFutureMapMu.Unlock()
 	uuidFutureMap[uuid] = futureEntry{ch: ch, createdAt: time.Now(), timeoutMs: timeoutMs}
+	uuidFutureMapMu.Unlock()
 	component.GetTimingWheel().AddTask(uuid, timeoutMs, component.TaskTypeFuture)
 	common.LogDebug("Future entry added", "uuid", uuid, "timeout", timeoutMs)
 }
 
 func RequestStubSetFuture(response *TykeResponse) {
+	var extractedCh chan *TykeResponse
+	found := false
+
 	uuidFutureMapMu.Lock()
-	defer uuidFutureMapMu.Unlock()
 	if entry, ok := uuidFutureMap[response.GetMsgUuid()]; ok {
-		respCopy := *response
-		entry.ch <- &respCopy
+		extractedCh = entry.ch
 		delete(uuidFutureMap, response.GetMsgUuid())
-		component.GetTimingWheel().RemoveTask(response.GetMsgUuid())
+		found = true
 		common.LogDebug("Future result set", "uuid", response.GetMsgUuid())
 	} else {
 		common.LogWarn("Future entry not found for response", "uuid", response.GetMsgUuid())
+	}
+	uuidFutureMapMu.Unlock()
+
+	if found {
+		component.GetTimingWheel().RemoveTask(response.GetMsgUuid())
+		respCopy := *response
+		select {
+		case extractedCh <- &respCopy:
+		default:
+			common.LogWarn("Future channel full, dropping response", "uuid", response.GetMsgUuid())
+		}
 	}
 }
 
 func RequestStubAddFunc(uuid string, fn func(*TykeResponse), timeoutMs uint32) {
 	uuidFuncMapMu.Lock()
-	defer uuidFuncMapMu.Unlock()
 	uuidFuncMap[uuid] = funcEntry{fn: fn, createdAt: time.Now(), timeoutMs: timeoutMs}
+	uuidFuncMapMu.Unlock()
 	component.GetTimingWheel().AddTask(uuid, timeoutMs, component.TaskTypeFunc)
 	common.LogDebug("Callback entry added", "uuid", uuid, "timeout", timeoutMs)
 }
 
 func RequestStubExecFunc(response *TykeResponse) {
+	var extractedFn func(*TykeResponse)
+	found := false
+
 	uuidFuncMapMu.Lock()
-	entry, ok := uuidFuncMap[response.GetMsgUuid()]
-	if ok {
+	if entry, ok := uuidFuncMap[response.GetMsgUuid()]; ok {
+		extractedFn = entry.fn
 		delete(uuidFuncMap, response.GetMsgUuid())
-		component.GetTimingWheel().RemoveTask(response.GetMsgUuid())
+		found = true
+	} else {
+		common.LogWarn("Callback entry not found for response", "uuid", response.GetMsgUuid())
 	}
 	uuidFuncMapMu.Unlock()
 
-	if ok {
+	if found {
+		component.GetTimingWheel().RemoveTask(response.GetMsgUuid())
 		common.LogDebug("Executing callback for response", "uuid", response.GetMsgUuid())
-		entry.fn(response)
-	} else {
-		common.LogWarn("Callback entry not found for response", "uuid", response.GetMsgUuid())
+		extractedFn(response)
 	}
 }
 
 func RequestStubCleanupExpiredFuture(uuid string) {
+	var extractedCh chan *TykeResponse
+	found := false
+
 	uuidFutureMapMu.Lock()
-	defer uuidFutureMapMu.Unlock()
 	if entry, ok := uuidFutureMap[uuid]; ok {
+		extractedCh = entry.ch
+		delete(uuidFutureMap, uuid)
+		found = true
+		common.LogWarn("Expired future cleaned up", "uuid", uuid)
+	}
+	uuidFutureMapMu.Unlock()
+
+	if found {
 		timeoutResp := NewTykeResponse()
 		timeoutResp.SetMsgUuid(uuid)
 		timeoutResp.SetResult(-1, "timeout")
-		entry.ch <- timeoutResp
-		delete(uuidFutureMap, uuid)
-		common.LogWarn("Expired future cleaned up", "uuid", uuid)
+		select {
+		case extractedCh <- timeoutResp:
+		default:
+			common.LogWarn("Future channel full on timeout, dropping", "uuid", uuid)
+		}
 	}
 }
 
 func RequestStubCleanupExpiredFunc(uuid string) {
 	uuidFuncMapMu.Lock()
-	defer uuidFuncMapMu.Unlock()
 	if _, ok := uuidFuncMap[uuid]; ok {
 		delete(uuidFuncMap, uuid)
 		common.LogWarn("Expired func cleaned up", "uuid", uuid)
 	}
+	uuidFuncMapMu.Unlock()
 }
