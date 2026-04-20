@@ -16,7 +16,7 @@ import (
 
 const (
 	serverUuid         = "tyke_server_example"
-	clientListenerUuid = "tyke_client_listener"
+	clientListenerUuid = "tyke_client_listener_go"
 )
 
 func printRequestHeader(title string, targetUuid string, request *core.TykeRequest) {

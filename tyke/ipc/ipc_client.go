@@ -73,20 +73,29 @@ func IpcClientSend(serverName string, request []byte, callback ClientRecvDataCal
 	}
 	common.LogDebug("IpcClient::Send", "server_name", serverName, "request_size", len(request))
 
-	conn := NewIpcConnection()
-	defer conn.Close()
-	if connectResult := conn.Connect(serverName, tm, tm); !connectResult.HasValue() {
-		common.LogError("IpcClient::Send connect failed", "error", connectResult.Err)
-		return common.ErrBool("send: " + connectResult.Err)
+	pool := GetConnectionPoolFactory().GetPool(serverName)
+	conn, err := pool.Acquire()
+	if err != nil {
+		common.LogError("IpcClient::Send acquire connection failed", "error", err)
+		return common.ErrBool("send: " + err.Error())
 	}
+
+	shouldReconnect := false
+
 	if writeResult := conn.WriteEncrypted(request, tm); !writeResult.HasValue() {
 		common.LogError("IpcClient::Send write failed", "error", writeResult.Err)
+		shouldReconnect = true
+		pool.Release(conn, shouldReconnect)
 		return common.ErrBool("send: " + writeResult.Err)
 	}
 	if readResult := conn.ReadLoop(callback, tm); !readResult.HasValue() {
 		common.LogError("IpcClient::Send read failed", "error", readResult.Err)
+		shouldReconnect = true
+		pool.Release(conn, shouldReconnect)
 		return common.ErrBool("send: " + readResult.Err)
 	}
+
+	pool.Release(conn, shouldReconnect)
 	common.LogDebug("IpcClient::Send completed successfully")
 	return common.OkBool(true)
 }
@@ -98,16 +107,26 @@ func IpcClientSendAsync(serverName string, request []byte, timeoutMs ...uint32) 
 	}
 	common.LogDebug("IpcClient::SendAsync", "server_name", serverName, "request_size", len(request))
 
-	conn := NewIpcConnection()
-	defer conn.Close()
-	if connectResult := conn.Connect(serverName, tm, tm); !connectResult.HasValue() {
-		common.LogError("IpcClient::SendAsync connect failed", "error", connectResult.Err)
-		return common.ErrBool("send async: " + connectResult.Err)
+	pool := GetConnectionPoolFactory().GetPool(serverName)
+	conn, err := pool.Acquire()
+	if err != nil {
+		common.LogError("IpcClient::SendAsync acquire connection failed", "error", err)
+		return common.ErrBool("send async: " + err.Error())
 	}
+
+	shouldReconnect := false
+
 	if writeResult := conn.WriteEncrypted(request, tm); !writeResult.HasValue() {
 		common.LogError("IpcClient::SendAsync write failed", "error", writeResult.Err)
-		return common.ErrBool("send async: " + writeResult.Err)
+		shouldReconnect = true
 	}
+
+	pool.Release(conn, shouldReconnect)
+
+	if shouldReconnect {
+		return common.ErrBool("send async: write encrypted failed")
+	}
+
 	common.LogDebug("IpcClient::SendAsync completed successfully")
 	return common.OkBool(true)
 }
