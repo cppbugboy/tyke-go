@@ -1,13 +1,13 @@
 package common
 
-// Result 是泛型结果类型，包含成功值或错误信息。
 type Result[T any] struct {
 	Value T
 	Err   string
+	ok    bool
 }
 
 func Ok[T any](value T) Result[T] {
-	return Result[T]{Value: value}
+	return Result[T]{Value: value, ok: true}
 }
 
 func Err[T any](err string) Result[T] {
@@ -15,7 +15,7 @@ func Err[T any](err string) Result[T] {
 }
 
 func (r Result[T]) HasValue() bool {
-	return r.Err == ""
+	return r.ok && r.Err == ""
 }
 
 func (r Result[T]) HasError() bool {

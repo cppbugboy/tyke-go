@@ -22,6 +22,12 @@ var requestPool = component.NewObjectPool(func() *TykeRequest {
 	}
 })
 
+func init() {
+	requestPool.SetReset(func(req *TykeRequest) {
+		req.Reset()
+	})
+}
+
 // AcquireRequest 从对象池获取一个 TykeRequest 实例。
 func AcquireRequest() *TykeRequest {
 	common.LogDebug("Acquiring request from pool")

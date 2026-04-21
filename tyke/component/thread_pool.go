@@ -5,7 +5,6 @@ import (
 	"sync/atomic"
 )
 
-// ThreadPool 是线程池，管理一组工作线程执行异步任务。
 type ThreadPool struct {
 	workers  int
 	tasks    chan func()

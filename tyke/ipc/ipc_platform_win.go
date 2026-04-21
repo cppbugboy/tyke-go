@@ -323,14 +323,13 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 func (s *serverImplWin) writeToClient(ctx *clientContext) bool {
 	ctx.writeMu.Lock()
 	defer ctx.writeMu.Unlock()
-	if len(ctx.pendingWrite) == 0 {
-		return true
+	for len(ctx.pendingWrite) > 0 {
+		n, err := ctx.conn.Write(ctx.pendingWrite)
+		if err != nil {
+			return false
+		}
+		ctx.pendingWrite = ctx.pendingWrite[n:]
 	}
-	n, err := ctx.conn.Write(ctx.pendingWrite)
-	if err != nil {
-		return false
-	}
-	ctx.pendingWrite = ctx.pendingWrite[n:]
 	return true
 }
 

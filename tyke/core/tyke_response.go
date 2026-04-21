@@ -8,7 +8,6 @@ import (
 
 type SendDataHandler func(clientId ipc.ClientId, data []byte) bool
 
-// TykeResponse 表示一个 IPC 响应对象，用于回复请求。
 type TykeResponse struct {
 	protocolHeader  common.ProtocolHeader
 	metadata        ResponseMetadata
@@ -25,12 +24,16 @@ var responsePool = component.NewObjectPool(func() *TykeResponse {
 	}
 })
 
-// NewTykeResponse 创建一个新的 TykeResponse 实例。
+func init() {
+	responsePool.SetReset(func(resp *TykeResponse) {
+		resp.Reset()
+	})
+}
+
 func NewTykeResponse() *TykeResponse {
 	return responsePool.Acquire()
 }
 
-// ReleaseResponse 将 TykeResponse 实例归还到对象池。
 func ReleaseResponse(resp *TykeResponse) {
 	if resp != nil {
 		common.LogDebug("Releasing response object to pool", "msg_uuid", resp.GetMsgUUID())

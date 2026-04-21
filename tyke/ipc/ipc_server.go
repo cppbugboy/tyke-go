@@ -2,12 +2,10 @@ package ipc
 
 import "github.com/tyke/tyke/tyke/common"
 
-// IPCServer 是 IPC 服务器端，监听客户端连接并处理数据。
 type IPCServer struct {
 	impl Server
 }
 
-// NewIPCServer 创建一个新的 IPCServer 实例。
 func NewIPCServer() *IPCServer {
 	common.LogDebug("IPCServer constructed")
 	return &IPCServer{impl: createServerImpl()}

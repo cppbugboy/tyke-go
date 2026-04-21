@@ -7,13 +7,14 @@ import (
 	"sync"
 
 	"github.com/tyke/tyke/tyke/common"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-// TykeLog 是日志系统的管理器，负责初始化和配置日志输出。
 type TykeLog struct {
-	logger      *slog.Logger
-	file        *os.File
-	multiWriter io.Writer
+	logger           *slog.Logger
+	file             *os.File
+	multiWriter      io.Writer
+	lumberjackWriter *lumberjack.Logger
 }
 
 var (
@@ -38,12 +39,22 @@ func (t *TykeLog) Init(logPath string, logLevel string, fileSizeMb uint32, fileC
 	writers = append(writers, os.Stdout)
 
 	if logPath != "" {
-		f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			return common.ErrBool("Failed to initialize log system: " + err.Error())
+		if fileSizeMb > 0 {
+			t.lumberjackWriter = &lumberjack.Logger{
+				Filename:   logPath,
+				MaxSize:    int(fileSizeMb),
+				MaxBackups: int(fileCount),
+				Compress:   true,
+			}
+			writers = append(writers, t.lumberjackWriter)
+		} else {
+			f, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+			if err != nil {
+				return common.ErrBool("Failed to initialize log system: " + err.Error())
+			}
+			t.file = f
+			writers = append(writers, f)
 		}
-		t.file = f
-		writers = append(writers, f)
 	}
 
 	multiWriter := io.MultiWriter(writers...)
@@ -91,8 +102,15 @@ func (t *TykeLog) SetLogLevel(logLevel string) {
 func (t *TykeLog) Stop() {
 	if t.logger != nil {
 		common.LogInfo("Tyke log system shutting down")
+		if t.lumberjackWriter != nil {
+			t.lumberjackWriter.Close()
+			t.lumberjackWriter = nil
+		}
 		if t.file != nil {
-			t.file.Close()
+			err := t.file.Close()
+			if err != nil {
+				return
+			}
 			t.file = nil
 		}
 		t.logger = nil

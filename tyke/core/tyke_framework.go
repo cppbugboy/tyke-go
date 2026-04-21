@@ -105,3 +105,15 @@ func (f *TykeFramework) GetRequestRouter() *RouterBase[RequestFilter, RequestHan
 func (f *TykeFramework) GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
 	return GetResponseRouterInstance()
 }
+
+func (f *TykeFramework) Shutdown() {
+	common.LogInfo("Tyke framework shutting down")
+
+	if f.ipcServer != nil {
+		f.ipcServer.Stop()
+	}
+
+	component.GetTimingWheel().Stop()
+	component.GetThreadPoolInstance().Stop(true)
+	GetTykeLogInstance().Stop()
+}

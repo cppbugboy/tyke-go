@@ -39,7 +39,6 @@ type TimingWheelConfig struct {
 	Levels []TimingWheelLevelConfig
 }
 
-// TimingWheel 是多级时间轮，用于高效的定时任务管理。
 type TimingWheel struct {
 	levels       []TimingWheelLevel
 	stopCh       chan struct{}
@@ -194,7 +193,11 @@ func (tw *TimingWheel) calculateSlot(levelIndex int, timeoutMs uint32) uint32 {
 func (tw *TimingWheel) tickLoop() {
 	defer tw.wg.Done()
 
-	ticker := time.NewTicker(200 * time.Millisecond)
+	tickInterval := time.Duration(tw.levels[0].tickIntervalMs) * time.Millisecond
+	if tickInterval <= 0 {
+		tickInterval = 200 * time.Millisecond
+	}
+	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
 
 	common.LogInfo("TimingWheel tick loop started")

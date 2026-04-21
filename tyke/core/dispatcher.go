@@ -45,7 +45,11 @@ func DispatchResponse(response *TykeResponse) {
 	router := GetResponseRouterInstance()
 	routeEntry := router.GetRouteEntry(response.GetRoute())
 	if routeEntry == nil {
-		common.LogWarn("Response route not found", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
+		common.LogWarn("Response route not found, trying stub handlers", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
+		if RequestStubExecFuncOrSetFuture(response) {
+			return
+		}
+		common.LogWarn("Response dropped: no route and no stub handler found", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 		return
 	}
 

@@ -1,4 +1,3 @@
-// Package ipc 实现了基于加密通道的进程间通信功能。
 package ipc
 
 import (
@@ -10,7 +9,6 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
-// ConnectionPoolConfig 定义了连接池的配置参数。
 type ConnectionPoolConfig struct {
 	MaxConnections     int
 	MinIdleConnections int
@@ -31,7 +29,6 @@ func DefaultConnectionPoolConfig() ConnectionPoolConfig {
 	}
 }
 
-// ConnectionPool 管理一组 IPC 连接，提供连接复用和生命周期管理。
 type ConnectionPool struct {
 	serverUuid       string
 	config           ConnectionPoolConfig
@@ -44,7 +41,6 @@ type ConnectionPool struct {
 	createConnection func() *IPCConnection
 }
 
-// NewConnectionPool 创建一个新的连接池。
 func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *ConnectionPool {
 	p := &ConnectionPool{
 		serverUuid: serverUuid,
@@ -198,7 +194,7 @@ func (p *ConnectionPool) defaultCreateConnection() *IPCConnection {
 func (p *ConnectionPool) cleanupLoop() {
 	defer p.wg.Done()
 
-	interval := time.Duration(p.config.IdleTimeoutMs/2) * time.Millisecond
+	interval := time.Duration(p.config.IdleTimeoutMs) * time.Millisecond / 2
 	if interval < time.Second {
 		interval = time.Second
 	}

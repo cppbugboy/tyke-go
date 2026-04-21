@@ -1,4 +1,3 @@
-// Package core 实现了 Tyke 框架的核心功能，包括请求/响应处理、路由分发和数据编解码。
 package core
 
 import (
@@ -25,7 +24,8 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 
 	if header.Magic != common.ProtocolMagic {
 		common.LogWarn("Protocol magic mismatch, discarding")
-		return nil
+		zero := uint32(0)
+		return &zero
 	}
 
 	common.LogDebug("Received message", "type", int(header.MsgType))
@@ -43,10 +43,11 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 
 	case common.MessageTypeRequestAsync, common.MessageTypeRequestAsyncFunc, common.MessageTypeRequestAsyncFuture:
 		request := AcquireRequest()
-		defer ReleaseRequest(request)
 		if DecodeRequest(dataVec, request, &used) {
 			common.LogDebug("Processing async request", "route", request.GetRoute())
 			RequestHandlerAsync(request)
+		} else {
+			ReleaseRequest(request)
 		}
 
 	case common.MessageTypeResponseAsync, common.MessageTypeResponseAsyncFunc, common.MessageTypeResponseAsyncFuture:
@@ -85,6 +86,7 @@ func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler
 }
 
 func RequestHandlerAsync(request *TykeRequest) {
+	defer ReleaseRequest(request)
 	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
 	response := NewTykeResponse()

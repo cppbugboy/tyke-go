@@ -18,7 +18,8 @@ func NewResponseFuture(msgUuid string, ch chan *TykeResponse) ResponseFuture {
 }
 
 func (f *ResponseFuture) GetResponse() *TykeResponse {
-	return <-f.ch
+	resp, _ := f.GetResponseWithTimeout(common.DefaultStubTimeoutMs)
+	return resp
 }
 
 func (f *ResponseFuture) GetResponseWithTimeout(timeoutMs uint32) (*TykeResponse, error) {

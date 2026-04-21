@@ -123,3 +123,40 @@ func RequestStubCleanupExpiredFunc(uuid string) {
 	}
 	uuidFuncMapMu.Unlock()
 }
+
+func RequestStubExecFuncOrSetFuture(response *TykeResponse) bool {
+	uuid := response.GetMsgUUID()
+
+	uuidFuncMapMu.Lock()
+	if entry, ok := uuidFuncMap[uuid]; ok {
+		extractedFn := entry.fn
+		delete(uuidFuncMap, uuid)
+		uuidFuncMapMu.Unlock()
+
+		component.GetTimingWheel().RemoveTask(uuid)
+		common.LogDebug("Executing fallback func for response", "uuid", uuid)
+		extractedFn(response)
+		return true
+	}
+	uuidFuncMapMu.Unlock()
+
+	uuidFutureMapMu.Lock()
+	if entry, ok := uuidFutureMap[uuid]; ok {
+		extractedCh := entry.ch
+		delete(uuidFutureMap, uuid)
+		uuidFutureMapMu.Unlock()
+
+		component.GetTimingWheel().RemoveTask(uuid)
+		common.LogDebug("Setting fallback future for response", "uuid", uuid)
+		respCopy := *response
+		select {
+		case extractedCh <- &respCopy:
+		default:
+			common.LogWarn("Fallback future channel full, dropping response", "uuid", uuid)
+		}
+		return true
+	}
+	uuidFutureMapMu.Unlock()
+
+	return false
+}

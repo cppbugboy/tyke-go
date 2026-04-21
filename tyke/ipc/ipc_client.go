@@ -6,13 +6,11 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
-// IPCConnection 表示一个加密的 IPC 客户端连接。
 type IPCConnection struct {
 	impl     ClientConnection
 	lastUsed time.Time
 }
 
-// NewIPCConnection 创建一个新的 IPCConnection 实例。
 func NewIPCConnection() *IPCConnection {
 	conn := &IPCConnection{impl: createClientConnectionImpl()}
 	conn.UpdateLastUsedTime()
@@ -68,7 +66,6 @@ func (c *IPCConnection) GetLastUsedTime() time.Time {
 	return c.lastUsed
 }
 
-// IPCClientSend 同步发送数据到指定服务器并等待响应。
 func IPCClientSend(serverName string, request []byte, callback ClientRecvDataCallback, timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(IPCDefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
@@ -99,7 +96,6 @@ func IPCClientSend(serverName string, request []byte, callback ClientRecvDataCal
 	return common.OkBool(true)
 }
 
-// IPCClientSend 同步发送数据到指定服务器并等待响应。
 func IPCClientSendAsync(serverName string, request []byte, timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(IPCDefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
