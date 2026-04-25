@@ -7,8 +7,8 @@ import (
 	"io"
 	"net"
 	"os"
-	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/Microsoft/go-winio"
@@ -49,9 +49,25 @@ func isPipeBusy(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "pipe is busy") ||
-		strings.Contains(err.Error(), "ERROR_PIPE_BUSY") ||
-		strings.Contains(err.Error(), "No process is on the other end")
+	if os.IsTimeout(err) {
+		return true
+	}
+	if isWinSysError(err, 231) || isWinSysError(err, 232) {
+		return true
+	}
+	if pathErr, ok := err.(*os.PathError); ok {
+		if isWinSysError(pathErr.Err, 231) || isWinSysError(pathErr.Err, 232) {
+			return true
+		}
+	}
+	return false
+}
+
+func isWinSysError(err error, code uintptr) bool {
+	if sysErr, ok := err.(syscall.Errno); ok {
+		return uintptr(sysErr) == code
+	}
+	return false
 }
 
 func (c *clientConnectionImplWin) WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult {

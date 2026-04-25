@@ -26,7 +26,7 @@ func (r RequestMetadata) MarshalJSON() ([]byte, error) {
 	}
 	for k, v := range r.HeadersMap {
 		if _, exists := raw[k]; !exists {
-			raw[k] = v
+			raw[k] = v.Value()
 		}
 	}
 	return json.Marshal(raw)
@@ -45,7 +45,7 @@ func (r *RequestMetadata) UnmarshalJSON(data []byte) error {
 	r.Timestamp = jsonStringField(raw, "timestamp")
 	r.Timeout = jsonUint64Field(raw, "timeout")
 	if r.HeadersMap == nil {
-		r.HeadersMap = make(map[string]common.JsonValue)
+		r.HeadersMap = make(map[string]common.JsonValueHolder)
 	}
 	for k, v := range raw {
 		if !RequestMetadataKnownKeys[k] {

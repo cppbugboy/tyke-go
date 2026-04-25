@@ -21,6 +21,8 @@ const (
 	MsgHandshakeInit byte = 0x01
 	MsgHandshakeResp byte = 0x02
 	MsgData          byte = 0x03
+
+	MaxFramePayloadLen uint32 = 16 * 1024 * 1024
 )
 
 func encodeU32(val uint32, out *[]byte) {
@@ -45,6 +47,10 @@ func ExtractFrame(buffer *[]byte) (byte, []byte, error) {
 		return 0, nil, fmt.Errorf("buffer too small for frame header")
 	}
 	totalLen := decodeU32(*buffer)
+	if totalLen > MaxFramePayloadLen {
+		*buffer = nil
+		return 0, nil, fmt.Errorf("frame payload too large: %d > %d", totalLen, MaxFramePayloadLen)
+	}
 	if uint32(len(*buffer)) < 4+totalLen {
 		return 0, nil, fmt.Errorf("buffer incomplete: expected %d bytes, got %d", 4+totalLen, len(*buffer))
 	}
@@ -55,12 +61,10 @@ func ExtractFrame(buffer *[]byte) (byte, []byte, error) {
 	return frameType, payload, nil
 }
 
-// ECDHKeyExchange 实现 ECDH 密钥交换算法，用于建立共享密钥。
 type ECDHKeyExchange struct {
 	privateKey *ecdh.PrivateKey
 }
 
-// NewECDHKeyExchange 创建一个新的 ECDHKeyExchange 实例。
 func NewECDHKeyExchange() *ECDHKeyExchange {
 	return &ECDHKeyExchange{}
 }
@@ -121,9 +125,9 @@ func (e *ECDHKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecR
 	return common.OkByteVec(secret)
 }
 
-// AESGCMCipher 实现 AES-GCM 加密算法，用于数据加密和解密。
 type AESGCMCipher struct {
 	aesKey      []byte
+	aesGcm      cipher.AEAD
 	initialized atomic.Bool
 	ivCounter   atomic.Uint64
 }
@@ -133,6 +137,10 @@ func NewAESGCMCipher() *AESGCMCipher {
 }
 
 func hkdfExpand(hashFunc func() hash.Hash, prk []byte, info []byte, length int) ([]byte, error) {
+	if length > 255*hashFunc().Size() {
+		return nil, fmt.Errorf("HKDF expand requested length too large: %d", length)
+	}
+
 	output := make([]byte, 0, length)
 	var counter byte = 1
 	var prev []byte
@@ -176,8 +184,8 @@ func (c *AESGCMCipher) Init(sharedSecret []byte) common.BoolResult {
 		return common.ErrBool("shared secret is empty")
 	}
 
-	salt := []byte("tyke-hkdf-salt")
-	info := []byte("tyke-aes256-key")
+	salt := []byte("tyke-v1-hkdf-salt")
+	info := []byte("tyke-v1-aes256-key")
 
 	key, err := hkdfDeriveKey(sha256.New, salt, sharedSecret, info, common.Aes256KeyLen)
 	if err != nil {
@@ -186,6 +194,19 @@ func (c *AESGCMCipher) Init(sharedSecret []byte) common.BoolResult {
 	}
 
 	c.aesKey = key
+
+	block, blockErr := aes.NewCipher(c.aesKey)
+	if blockErr != nil {
+		common.LogError("AES cipher creation failed", "error", blockErr)
+		return common.ErrBool("AES cipher creation failed")
+	}
+	gcm, gcmErr := cipher.NewGCM(block)
+	if gcmErr != nil {
+		common.LogError("GCM creation failed", "error", gcmErr)
+		return common.ErrBool("GCM creation failed")
+	}
+	c.aesGcm = gcm
+
 	c.initialized.Store(true)
 	common.LogDebug("AES-GCM cipher initialized with HKDF")
 	return common.OkBool(true)
@@ -195,30 +216,31 @@ func (c *AESGCMCipher) IsInitialized() bool {
 	return c.initialized.Load()
 }
 
+func (c *AESGCMCipher) ClearKey() {
+	if c.aesKey != nil {
+		for i := range c.aesKey {
+			c.aesKey[i] = 0
+		}
+		c.aesKey = nil
+	}
+	c.aesGcm = nil
+	c.initialized.Store(false)
+}
+
 func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
-	if !c.initialized.Load() {
+	if !c.initialized.Load() || c.aesGcm == nil {
 		return common.ErrByteVec("cipher not initialized")
-	}
-	block, err := aes.NewCipher(c.aesKey)
-	if err != nil {
-		common.LogError("AES cipher creation failed", "error", err)
-		return common.ErrByteVec("AES cipher creation failed")
-	}
-	aesGcm, err := cipher.NewGCM(block)
-	if err != nil {
-		common.LogError("GCM creation failed", "error", err)
-		return common.ErrByteVec("GCM creation failed")
 	}
 
 	iv := make([]byte, common.AesGcmIvLen)
-	counter := c.ivCounter.Add(1)
-	binary.BigEndian.PutUint64(iv[4:], counter)
 	if _, err := rand.Read(iv[:4]); err != nil {
 		common.LogError("IV prefix generation failed", "error", err)
 		return common.ErrByteVec("IV prefix generation failed")
 	}
+	counter := c.ivCounter.Add(1)
+	binary.BigEndian.PutUint64(iv[4:], counter)
 
-	ciphertext := aesGcm.Seal(nil, iv, plaintext, nil)
+	ciphertext := c.aesGcm.Seal(nil, iv, plaintext, nil)
 	result := make([]byte, 0, common.AesGcmIvLen+len(ciphertext))
 	result = append(result, iv...)
 	result = append(result, ciphertext...)
@@ -226,26 +248,17 @@ func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
 }
 
 func (c *AESGCMCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
-	if !c.initialized.Load() {
+	if !c.initialized.Load() || c.aesGcm == nil {
 		return common.ErrByteVec("cipher not initialized")
 	}
 	if len(ciphertext) < common.AesGcmIvLen+common.AesGcmTagLen {
 		return common.ErrByteVec("ciphertext too short")
 	}
-	block, err := aes.NewCipher(c.aesKey)
-	if err != nil {
-		common.LogError("AES cipher creation failed", "error", err)
-		return common.ErrByteVec("AES cipher creation failed")
-	}
-	aesGcm, err := cipher.NewGCM(block)
-	if err != nil {
-		common.LogError("GCM creation failed", "error", err)
-		return common.ErrByteVec("GCM creation failed")
-	}
-	ivSize := aesGcm.NonceSize()
+
+	ivSize := c.aesGcm.NonceSize()
 	iv := ciphertext[:ivSize]
 	encData := ciphertext[ivSize:]
-	plaintext, err := aesGcm.Open(nil, iv, encData, nil)
+	plaintext, err := c.aesGcm.Open(nil, iv, encData, nil)
 	if err != nil {
 		common.LogError("AES-GCM decrypt failed", "error", err)
 		return common.ErrByteVec("AES-GCM decrypt final failed: authentication tag mismatch")

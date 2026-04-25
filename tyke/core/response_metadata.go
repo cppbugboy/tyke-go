@@ -51,7 +51,7 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	r.Status = jsonIntField(raw, "status")
 	r.Reason = jsonStringField(raw, "reason")
 	if r.HeadersMap == nil {
-		r.HeadersMap = make(map[string]common.JsonValue)
+		r.HeadersMap = make(map[string]common.JsonValueHolder)
 	}
 	for k, v := range raw {
 		if !ResponseMetadataKnownKeys[k] {

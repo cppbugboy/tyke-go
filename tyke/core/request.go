@@ -98,11 +98,11 @@ func (r *Request) GetAsyncUUID() string {
 	return r.metadata.GetAsyncUUID()
 }
 
-func (r *Request) AddMetadata(key string, value common.JsonValue) common.BoolResult {
+func (r *Request) AddMetadata(key string, value common.JsonValueHolder) common.BoolResult {
 	return r.metadata.AddMetadata(key, value)
 }
 
-func (r *Request) GetMetadata(key string) (common.JsonValue, bool) {
+func (r *Request) GetMetadata(key string) (common.JsonValueHolder, bool) {
 	return r.metadata.GetMetadata(key)
 }
 

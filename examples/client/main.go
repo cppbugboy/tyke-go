@@ -104,8 +104,8 @@ func demoSyncRequest() {
 	loginBytes, _ := json.Marshal(loginData)
 	request.SetContent(common.ContentTypeJson, loginBytes)
 
-	request.AddMetadata("source", "go_client")
-	request.AddMetadata("version", "1.0")
+	request.AddMetadata("source", common.NewJsonValue("go_client"))
+	request.AddMetadata("version", common.NewJsonValue("1.0"))
 
 	printRequestHeader("发送同步请求", serverUuid, request)
 

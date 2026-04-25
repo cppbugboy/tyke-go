@@ -39,6 +39,7 @@ type ConnectionPool struct {
 	stopCh           chan struct{}
 	wg               sync.WaitGroup
 	createConnection func() *IPCConnection
+	stopped          atomic.Bool
 }
 
 func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *ConnectionPool {
@@ -60,7 +61,61 @@ func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *Connecti
 func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 	p.mu.Lock()
 
+	if p.stopped.Load() {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("connection pool is stopped, server=%s", p.serverUuid)
+	}
+
+	for len(p.idle) > 0 {
+		conn := p.idle[len(p.idle)-1]
+		p.idle = p.idle[:len(p.idle)-1]
+
+		if conn.IsValid() {
+			atomic.AddInt32(&p.active, 1)
+			conn.UpdateLastUsedTime()
+			p.mu.Unlock()
+			common.LogDebug("Acquired idle connection from pool", "server", p.serverUuid,
+				"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
+			return conn, nil
+		}
+		common.LogWarn("Idle connection invalid, destroying", "server", p.serverUuid)
+		conn.Close()
+	}
+
+	canCreate := int(atomic.LoadInt32(&p.active)) < p.config.MaxConnections
+	p.mu.Unlock()
+
+	if canCreate {
+		conn := p.createConnection()
+		if conn != nil {
+			atomic.AddInt32(&p.active, 1)
+			common.LogDebug("Created new connection in pool", "server", p.serverUuid,
+				"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
+			return conn, nil
+		}
+		return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
+	}
+
+	timer := time.NewTimer(time.Duration(p.config.AcquireTimeoutMs) * time.Millisecond)
+	defer timer.Stop()
 	for {
+		select {
+		case <-p.available:
+			if p.stopped.Load() {
+				return nil, fmt.Errorf("connection pool stopped, server=%s", p.serverUuid)
+			}
+		case <-timer.C:
+			return nil, fmt.Errorf("acquire connection timeout, server=%s", p.serverUuid)
+		case <-p.stopCh:
+			return nil, fmt.Errorf("connection pool stopped, server=%s", p.serverUuid)
+		}
+
+		p.mu.Lock()
+		if p.stopped.Load() {
+			p.mu.Unlock()
+			return nil, fmt.Errorf("connection pool stopped, server=%s", p.serverUuid)
+		}
+
 		for len(p.idle) > 0 {
 			conn := p.idle[len(p.idle)-1]
 			p.idle = p.idle[:len(p.idle)-1]
@@ -69,8 +124,6 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 				atomic.AddInt32(&p.active, 1)
 				conn.UpdateLastUsedTime()
 				p.mu.Unlock()
-				common.LogDebug("Acquired idle connection from pool", "server", p.serverUuid,
-					"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
 				return conn, nil
 			}
 			common.LogWarn("Idle connection invalid, destroying", "server", p.serverUuid)
@@ -78,32 +131,16 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 		}
 
 		if int(atomic.LoadInt32(&p.active)) < p.config.MaxConnections {
+			p.mu.Unlock()
 			conn := p.createConnection()
 			if conn != nil {
 				atomic.AddInt32(&p.active, 1)
-				p.mu.Unlock()
-				common.LogDebug("Created new connection in pool", "server", p.serverUuid,
-					"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
 				return conn, nil
 			}
-			p.mu.Unlock()
 			return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
 		}
 
 		p.mu.Unlock()
-
-		timer := time.NewTimer(time.Duration(p.config.AcquireTimeoutMs) * time.Millisecond)
-		select {
-		case <-p.available:
-			timer.Stop()
-		case <-timer.C:
-			return nil, fmt.Errorf("acquire connection timeout, server=%s", p.serverUuid)
-		case <-p.stopCh:
-			timer.Stop()
-			return nil, fmt.Errorf("connection pool stopped, server=%s", p.serverUuid)
-		}
-
-		p.mu.Lock()
 	}
 }
 
@@ -115,15 +152,25 @@ func (p *ConnectionPool) Release(conn *IPCConnection, shouldReconnect bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	if p.stopped.Load() {
+		conn.Close()
+		atomic.AddInt32(&p.active, -1)
+		return
+	}
+
 	if shouldReconnect || !conn.IsValid() {
 		common.LogWarn("Releasing broken connection, reconnecting", "server", p.serverUuid)
 		conn.Close()
 
 		total := len(p.idle) + int(atomic.LoadInt32(&p.active))
 		if total-1 < p.config.MinIdleConnections {
+			p.mu.Unlock()
 			if newConn := p.createConnection(); newConn != nil {
+				p.mu.Lock()
 				p.idle = append(p.idle, newConn)
 				common.LogDebug("Created replacement connection", "server", p.serverUuid)
+			} else {
+				p.mu.Lock()
 			}
 		}
 	} else {
@@ -155,10 +202,8 @@ func (p *ConnectionPool) GetServerUuid() string {
 }
 
 func (p *ConnectionPool) Stop() {
-	select {
-	case <-p.stopCh:
+	if !p.stopped.CompareAndSwap(false, true) {
 		return
-	default:
 	}
 
 	close(p.stopCh)

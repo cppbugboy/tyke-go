@@ -8,18 +8,18 @@ import (
 
 // MetadataBase 提供请求/响应元数据的公共字段和方法。
 type MetadataBase struct {
-	Module      string                      `json:"module"`
-	AsyncUUID   string                      `json:"async_uuid"`
-	MsgUUID     string                      `json:"msg_uuid"`
-	Route       string                      `json:"route"`
-	ContentType string                      `json:"content_type"`
-	Timestamp   string                      `json:"timestamp"`
-	Timeout     uint64                      `json:"timeout"`
-	HeadersMap  map[string]common.JsonValue `json:"-"`
+	Module      string                            `json:"module"`
+	AsyncUUID   string                            `json:"async_uuid"`
+	MsgUUID     string                            `json:"msg_uuid"`
+	Route       string                            `json:"route"`
+	ContentType string                            `json:"content_type"`
+	Timestamp   string                            `json:"timestamp"`
+	Timeout     uint64                            `json:"timeout"`
+	HeadersMap  map[string]common.JsonValueHolder `json:"-"`
 }
 
 func NewMetadataBase() MetadataBase {
-	return MetadataBase{HeadersMap: make(map[string]common.JsonValue)}
+	return MetadataBase{HeadersMap: make(map[string]common.JsonValueHolder)}
 }
 
 func (m *MetadataBase) GetModule() string {
@@ -85,20 +85,20 @@ func (m *MetadataBase) SetTimeout(timeout uint64) *MetadataBase {
 	return m
 }
 
-func (m *MetadataBase) AddMetadata(key string, value common.JsonValue) common.BoolResult {
+func (m *MetadataBase) AddMetadata(key string, value common.JsonValueHolder) common.BoolResult {
 	if key == "" {
 		return common.ErrBool("Metadata key cannot be empty")
 	}
 	if m.HeadersMap == nil {
-		m.HeadersMap = make(map[string]common.JsonValue)
+		m.HeadersMap = make(map[string]common.JsonValueHolder)
 	}
 	m.HeadersMap[key] = value
 	return common.OkBool(true)
 }
 
-func (m *MetadataBase) GetMetadata(key string) (common.JsonValue, bool) {
+func (m *MetadataBase) GetMetadata(key string) (common.JsonValueHolder, bool) {
 	if m.HeadersMap == nil {
-		return nil, false
+		return common.JsonValueHolder{}, false
 	}
 	v, ok := m.HeadersMap[key]
 	return v, ok

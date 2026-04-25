@@ -103,11 +103,11 @@ func (r *Response) GetContent() (string, []byte) {
 	return r.metadata.GetContentType(), r.content
 }
 
-func (r *Response) AddMetadata(key string, value common.JsonValue) common.BoolResult {
+func (r *Response) AddMetadata(key string, value common.JsonValueHolder) common.BoolResult {
 	return r.metadata.AddMetadata(key, value)
 }
 
-func (r *Response) GetMetadata(key string) (common.JsonValue, bool) {
+func (r *Response) GetMetadata(key string) (common.JsonValueHolder, bool) {
 	return r.metadata.GetMetadata(key)
 }
 
