@@ -3,6 +3,7 @@
 package ipc
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -211,7 +212,9 @@ func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback
 	s.callback = callback
 	pipePath := `\\.\pipe\` + serverName
 	cfg := &winio.PipeConfig{
-		MessageMode: true,
+		MessageMode:      false,
+		InputBufferSize:  4096,
+		OutputBufferSize: 4096,
 	}
 	listener, err := winio.ListenPipe(pipePath, cfg)
 	if err != nil {
@@ -250,15 +253,19 @@ func (s *serverImplWin) acceptLoop() {
 }
 
 func (s *serverImplWin) handleClient(cid ClientId, ctx *clientContext) {
+	common.LogInfo("Server handling client connection", "client_id", cid)
 	chunk := make([]byte, 4096)
 	for s.running {
 		n, err := ctx.conn.Read(chunk)
 		if err != nil {
+			common.LogError("Server read error for client", "client_id", cid, "error", err)
 			s.closeClient(cid)
 			return
 		}
+		common.LogDebug("Server read from client", "client_id", cid, "bytes", n)
 		ctx.rawRecvBuf = append(ctx.rawRecvBuf, chunk[:n]...)
 		if !s.processFrames(cid, ctx) {
+			common.LogError("Server processFrames failed for client", "client_id", cid)
 			s.closeClient(cid)
 			return
 		}
@@ -271,36 +278,60 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 		if err != nil {
 			break
 		}
+		common.LogDebug("Server processing frame", "client_id", cid, "frame_type", fmt.Sprintf("0x%02X", frameType), "payload_len", len(payload))
 		if ctx.state == stateWaitHello {
 			if frameType != MsgHandshakeInit {
+				common.LogError("Server received non-HandshakeInit frame during handshake", "frame_type", fmt.Sprintf("0x%02X", frameType))
 				return false
 			}
+			common.LogDebug("Server processing HandshakeInit from client", "client_id", cid, "pubkey_len", len(payload))
+
 			if genResult := ctx.ecdh.GenerateKey(); !genResult.HasValue() {
+				common.LogError("Server ECDH key generation failed", "error", genResult.Err)
 				return false
 			}
+			common.LogDebug("Server ECDH key generated")
+
 			secretResult := ctx.ecdh.ComputeSharedSecret(payload)
 			if !secretResult.HasValue() {
+				common.LogError("Server compute shared secret failed", "error", secretResult.Err)
 				return false
 			}
+			common.LogDebug("Server computed shared secret", "len", len(secretResult.Value))
+
 			if initResult := ctx.cipher.Init(secretResult.Value); !initResult.HasValue() {
+				common.LogError("Server cipher init failed", "error", initResult.Err)
 				return false
 			}
+			common.LogDebug("Server cipher initialized")
+
 			pubDerResult := ctx.ecdh.GetPublicKeyDer()
 			if !pubDerResult.HasValue() {
+				common.LogError("Server get public key DER failed", "error", pubDerResult.Err)
 				return false
 			}
+			common.LogDebug("Server public key DER obtained", "len", len(pubDerResult.Value))
+
 			resp := BuildFrame(MsgHandshakeResp, pubDerResult.Value)
+			common.LogDebug("Server sending handshake response frame", "len", len(resp))
+
 			ctx.writeMu.Lock()
 			ctx.pendingWrite = append(ctx.pendingWrite, resp...)
 			ctx.writeMu.Unlock()
-			s.writeToClient(ctx)
+			if !s.writeToClient(ctx) {
+				common.LogError("Server failed to write handshake response")
+				return false
+			}
+			common.LogInfo("Server handshake completed for client", "client_id", cid)
 			ctx.state = stateEstablished
 		} else if ctx.state == stateEstablished {
 			if frameType != MsgData {
+				common.LogError("Server received non-Data frame after handshake", "frame_type", fmt.Sprintf("0x%02X", frameType))
 				return false
 			}
 			decryptResult := ctx.cipher.Decrypt(payload)
 			if !decryptResult.HasValue() {
+				common.LogError("Server decrypt failed", "error", decryptResult.Err)
 				return false
 			}
 			dataCopy := decryptResult.Value

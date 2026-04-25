@@ -5,10 +5,14 @@ import (
 	"crypto/cipher"
 	"crypto/ecdh"
 	"crypto/ecdsa"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"fmt"
+	"hash"
+	"sync/atomic"
 
 	"github.com/tyke/tyke/tyke/common"
 )
@@ -20,11 +24,11 @@ const (
 )
 
 func encodeU32(val uint32, out *[]byte) {
-	*out = append(*out, byte((val>>24)&0xFF), byte((val>>16)&0xFF), byte((val>>8)&0xFF), byte(val&0xFF))
+	*out = append(*out, byte(val&0xFF), byte((val>>8)&0xFF), byte((val>>16)&0xFF), byte((val>>24)&0xFF))
 }
 
 func decodeU32(data []byte) uint32 {
-	return uint32(data[0])<<24 | uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
+	return uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16 | uint32(data[3])<<24
 }
 
 func BuildFrame(frameType byte, payload []byte) []byte {
@@ -120,31 +124,79 @@ func (e *ECDHKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecR
 // AESGCMCipher 实现 AES-GCM 加密算法，用于数据加密和解密。
 type AESGCMCipher struct {
 	aesKey      []byte
-	initialized bool
+	initialized atomic.Bool
+	ivCounter   atomic.Uint64
 }
 
-// NewAESGCMCipher 创建一个新的 AESGCMCipher 实例。
 func NewAESGCMCipher() *AESGCMCipher {
 	return &AESGCMCipher{}
+}
+
+func hkdfExpand(hashFunc func() hash.Hash, prk []byte, info []byte, length int) ([]byte, error) {
+	output := make([]byte, 0, length)
+	var counter byte = 1
+	var prev []byte
+
+	for len(output) < length {
+		h := hmac.New(hashFunc, prk)
+		h.Write(prev)
+		h.Write(info)
+		h.Write([]byte{counter})
+		t := h.Sum(nil)
+		remaining := length - len(output)
+		if remaining > len(t) {
+			remaining = len(t)
+		}
+		output = append(output, t[:remaining]...)
+		prev = t
+		counter++
+		if counter == 0 {
+			return nil, fmt.Errorf("HKDF expand counter overflow")
+		}
+	}
+	return output, nil
+}
+
+func hkdfExtract(hashFunc func() hash.Hash, salt []byte, ikm []byte) []byte {
+	if salt == nil || len(salt) == 0 {
+		salt = make([]byte, hashFunc().Size())
+	}
+	h := hmac.New(hashFunc, salt)
+	h.Write(ikm)
+	return h.Sum(nil)
+}
+
+func hkdfDeriveKey(hashFunc func() hash.Hash, salt []byte, ikm []byte, info []byte, length int) ([]byte, error) {
+	prk := hkdfExtract(hashFunc, salt, ikm)
+	return hkdfExpand(hashFunc, prk, info, length)
 }
 
 func (c *AESGCMCipher) Init(sharedSecret []byte) common.BoolResult {
 	if len(sharedSecret) == 0 {
 		return common.ErrBool("shared secret is empty")
 	}
-	hash := sha256.Sum256(sharedSecret)
-	c.aesKey = hash[:]
-	c.initialized = true
-	common.LogDebug("AES-GCM cipher initialized")
+
+	salt := []byte("tyke-hkdf-salt")
+	info := []byte("tyke-aes256-key")
+
+	key, err := hkdfDeriveKey(sha256.New, salt, sharedSecret, info, common.Aes256KeyLen)
+	if err != nil {
+		common.LogError("HKDF derive key failed", "error", err)
+		return common.ErrBool("HKDF derive key failed")
+	}
+
+	c.aesKey = key
+	c.initialized.Store(true)
+	common.LogDebug("AES-GCM cipher initialized with HKDF")
 	return common.OkBool(true)
 }
 
 func (c *AESGCMCipher) IsInitialized() bool {
-	return c.initialized
+	return c.initialized.Load()
 }
 
 func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
-	if !c.initialized {
+	if !c.initialized.Load() {
 		return common.ErrByteVec("cipher not initialized")
 	}
 	block, err := aes.NewCipher(c.aesKey)
@@ -157,20 +209,24 @@ func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
 		common.LogError("GCM creation failed", "error", err)
 		return common.ErrByteVec("GCM creation failed")
 	}
-	iv := make([]byte, aesGcm.NonceSize())
-	if _, err := rand.Read(iv); err != nil {
-		common.LogError("IV generation failed", "error", err)
-		return common.ErrByteVec("IV generation failed")
+
+	iv := make([]byte, common.AesGcmIvLen)
+	counter := c.ivCounter.Add(1)
+	binary.BigEndian.PutUint64(iv[4:], counter)
+	if _, err := rand.Read(iv[:4]); err != nil {
+		common.LogError("IV prefix generation failed", "error", err)
+		return common.ErrByteVec("IV prefix generation failed")
 	}
+
 	ciphertext := aesGcm.Seal(nil, iv, plaintext, nil)
-	result := make([]byte, 0, len(iv)+len(ciphertext))
+	result := make([]byte, 0, common.AesGcmIvLen+len(ciphertext))
 	result = append(result, iv...)
 	result = append(result, ciphertext...)
 	return common.OkByteVec(result)
 }
 
 func (c *AESGCMCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
-	if !c.initialized {
+	if !c.initialized.Load() {
 		return common.ErrByteVec("cipher not initialized")
 	}
 	if len(ciphertext) < common.AesGcmIvLen+common.AesGcmTagLen {

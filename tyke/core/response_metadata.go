@@ -24,6 +24,7 @@ func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 		"route":        r.Route,
 		"content_type": r.ContentType,
 		"timestamp":    r.Timestamp,
+		"timeout":      r.Timeout,
 		"status":       r.Status,
 		"reason":       r.Reason,
 	}
@@ -46,6 +47,7 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	r.Route = jsonStringField(raw, "route")
 	r.ContentType = jsonStringField(raw, "content_type")
 	r.Timestamp = jsonStringField(raw, "timestamp")
+	r.Timeout = jsonUint64Field(raw, "timeout")
 	r.Status = jsonIntField(raw, "status")
 	r.Reason = jsonStringField(raw, "reason")
 	if r.HeadersMap == nil {
@@ -79,7 +81,7 @@ func (r *ResponseMetadata) SetReason(reason string) *ResponseMetadata {
 
 var ResponseMetadataKnownKeys = map[string]bool{
 	"module": true, "async_uuid": true, "msg_uuid": true, "route": true,
-	"content_type": true, "timestamp": true, "status": true, "reason": true,
+	"content_type": true, "timestamp": true, "timeout": true, "status": true, "reason": true,
 }
 
 func (r *ResponseMetadata) FromJsonString(jsonStr string) error {

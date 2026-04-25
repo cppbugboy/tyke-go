@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tyke/tyke/tyke/controller"
 	"github.com/tyke/tyke/tyke/core"
 )
 
 type ExampleResponseController struct{}
 
-func NewExampleResponseController() controller.ControllerBase {
+func NewExampleResponseController() core.ControllerBase {
 	return &ExampleResponseController{}
 }
 

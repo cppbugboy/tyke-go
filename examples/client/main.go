@@ -10,7 +10,6 @@ import (
 
 	"github.com/tyke/tyke/examples/controllers"
 	"github.com/tyke/tyke/tyke/common"
-	"github.com/tyke/tyke/tyke/controller"
 	"github.com/tyke/tyke/tyke/core"
 )
 
@@ -104,6 +103,9 @@ func demoSyncRequest() {
 	}
 	loginBytes, _ := json.Marshal(loginData)
 	request.SetContent(common.ContentTypeJson, loginBytes)
+
+	request.AddMetadata("source", "go_client")
+	request.AddMetadata("version", "1.0")
 
 	printRequestHeader("发送同步请求", serverUuid, request)
 
@@ -213,7 +215,7 @@ func main() {
 	framework.SetThreadPoolCount(4)
 	framework.SetLogConfig("./tyke_client.log", "debug", 1024, 5)
 
-	controller.RegisterController(controllers.NewExampleResponseController())
+	core.RegisterController(controllers.NewExampleResponseController())
 
 	result := framework.Start(clientListenerUuid)
 	if !result.HasValue() {
@@ -247,4 +249,8 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
+
+	fmt.Println("\n正在关闭客户端...")
+	framework.Shutdown()
+	fmt.Println("客户端已关闭")
 }

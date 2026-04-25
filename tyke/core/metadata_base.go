@@ -14,6 +14,7 @@ type MetadataBase struct {
 	Route       string                      `json:"route"`
 	ContentType string                      `json:"content_type"`
 	Timestamp   string                      `json:"timestamp"`
+	Timeout     uint64                      `json:"timeout"`
 	HeadersMap  map[string]common.JsonValue `json:"-"`
 }
 
@@ -75,6 +76,15 @@ func (m *MetadataBase) SetTimestamp(timestamp string) *MetadataBase {
 	return m
 }
 
+func (m *MetadataBase) GetTimeout() uint64 {
+	return m.Timeout
+}
+
+func (m *MetadataBase) SetTimeout(timeout uint64) *MetadataBase {
+	m.Timeout = timeout
+	return m
+}
+
 func (m *MetadataBase) AddMetadata(key string, value common.JsonValue) common.BoolResult {
 	if key == "" {
 		return common.ErrBool("Metadata key cannot be empty")
@@ -107,6 +117,16 @@ func jsonStringField(raw map[string]json.RawMessage, key string) string {
 func jsonIntField(raw map[string]json.RawMessage, key string) int {
 	if v, ok := raw[key]; ok {
 		var n int
+		if json.Unmarshal(v, &n) == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+func jsonUint64Field(raw map[string]json.RawMessage, key string) uint64 {
+	if v, ok := raw[key]; ok {
+		var n uint64
 		if json.Unmarshal(v, &n) == nil {
 			return n
 		}

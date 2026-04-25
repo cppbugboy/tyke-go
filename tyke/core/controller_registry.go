@@ -1,4 +1,4 @@
-package controller
+package core
 
 var registeredControllers []ControllerBase
 

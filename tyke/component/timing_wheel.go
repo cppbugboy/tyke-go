@@ -16,6 +16,19 @@ const (
 	TaskTypeFuture
 )
 
+type TimerId uint64
+
+const InvalidTimerId TimerId = 0
+
+type TimerTask struct {
+	Id          TimerId
+	Callback    func()
+	ExpireTime  time.Time
+	IntervalMs  uint32
+	IsRepeating bool
+	Cancelled   bool
+}
+
 type TaskEntry struct {
 	Uuid       string
 	ExpireTime time.Time
@@ -50,6 +63,9 @@ type TimingWheel struct {
 
 	onExpiredFunc   func(uuid string)
 	onExpiredFuture func(uuid string)
+
+	timerTasks  map[TimerId]*TimerTask
+	nextTimerId atomic.Uint64
 }
 
 var (
@@ -61,6 +77,7 @@ func GetTimingWheel() *TimingWheel {
 	timingWheelOnce.Do(func() {
 		timingWheelInstance = &TimingWheel{
 			taskLocation: make(map[string]string),
+			timerTasks:   make(map[TimerId]*TimerTask),
 			stopCh:       make(chan struct{}),
 		}
 		common.LogInfo("TimingWheel instance created")
@@ -155,6 +172,113 @@ func (tw *TimingWheel) RemoveTask(uuid string) {
 	common.LogDebug("Task removed from timing wheel", "uuid", uuid)
 }
 
+func (tw *TimingWheel) AddTaskAt(deadline time.Time, cb func()) TimerId {
+	if tw.stopped.Load() {
+		common.LogWarn("TimingWheel not running, cannot add task at")
+		return InvalidTimerId
+	}
+
+	delay := time.Until(deadline)
+	if delay <= 0 {
+		go cb()
+		return InvalidTimerId
+	}
+
+	id := TimerId(tw.nextTimerId.Add(1))
+	task := &TimerTask{
+		Id:         id,
+		Callback:   cb,
+		ExpireTime: deadline,
+	}
+
+	tw.mu.Lock()
+	tw.timerTasks[id] = task
+	tw.mu.Unlock()
+
+	go func() {
+		select {
+		case <-time.After(delay):
+			tw.mu.Lock()
+			t, exists := tw.timerTasks[id]
+			if exists && !t.Cancelled {
+				delete(tw.timerTasks, id)
+				tw.mu.Unlock()
+				cb()
+			} else {
+				tw.mu.Unlock()
+			}
+		case <-tw.stopCh:
+			return
+		}
+	}()
+
+	common.LogDebug("AddTaskAt registered", "timer_id", id, "delay_ms", delay.Milliseconds())
+	return id
+}
+
+func (tw *TimingWheel) CancelTask(id TimerId) bool {
+	tw.mu.Lock()
+	defer tw.mu.Unlock()
+
+	if task, exists := tw.timerTasks[id]; exists {
+		task.Cancelled = true
+		delete(tw.timerTasks, id)
+		common.LogDebug("Timer task cancelled", "timer_id", id)
+		return true
+	}
+	return false
+}
+
+func (tw *TimingWheel) AddRepeatedTask(initialDelayMs uint32, intervalMs uint32, cb func()) TimerId {
+	if tw.stopped.Load() {
+		common.LogWarn("TimingWheel not running, cannot add repeated task")
+		return InvalidTimerId
+	}
+
+	id := TimerId(tw.nextTimerId.Add(1))
+	task := &TimerTask{
+		Id:          id,
+		Callback:    cb,
+		IntervalMs:  intervalMs,
+		IsRepeating: true,
+	}
+
+	tw.mu.Lock()
+	tw.timerTasks[id] = task
+	tw.mu.Unlock()
+
+	go func() {
+		if initialDelayMs > 0 {
+			select {
+			case <-time.After(time.Duration(initialDelayMs) * time.Millisecond):
+			case <-tw.stopCh:
+				return
+			}
+		}
+
+		for {
+			tw.mu.Lock()
+			t, exists := tw.timerTasks[id]
+			if !exists || t.Cancelled {
+				tw.mu.Unlock()
+				return
+			}
+			tw.mu.Unlock()
+
+			cb()
+
+			select {
+			case <-time.After(time.Duration(intervalMs) * time.Millisecond):
+			case <-tw.stopCh:
+				return
+			}
+		}
+	}()
+
+	common.LogDebug("AddRepeatedTask registered", "timer_id", id, "initial_delay", initialDelayMs, "interval", intervalMs)
+	return id
+}
+
 func (tw *TimingWheel) Stop() {
 	if !tw.initialized.Load() || tw.stopped.Swap(true) {
 		return
@@ -166,6 +290,7 @@ func (tw *TimingWheel) Stop() {
 	tw.mu.Lock()
 	defer tw.mu.Unlock()
 	tw.taskLocation = make(map[string]string)
+	tw.timerTasks = make(map[TimerId]*TimerTask)
 	tw.levels = nil
 	tw.initialized.Store(false)
 

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"runtime"
 	"sync"
 
 	"github.com/tyke/tyke/tyke/common"
@@ -16,6 +17,7 @@ type Framework struct {
 	fileSizeMb      uint32
 	fileCount       uint32
 	ipcServer       *ipc.IPCServer
+	cleanupTimerId  component.TimerId
 }
 
 var (
@@ -69,14 +71,29 @@ func (f *Framework) Start(listenUuid string) common.BoolResult {
 
 	common.LogInfo("Tyke framework starting", "listen_uuid", listenUuid)
 
+	threadPoolCount := f.threadPoolCount
+	if threadPoolCount == 0 {
+		threadPoolCount = uint32(runtime.NumCPU())
+	}
+	if threadPoolCount == 0 {
+		threadPoolCount = 4
+	}
+
 	tp := component.GetThreadPoolInstance()
-	tp.Init(int(f.threadPoolCount))
-	common.LogDebug("Thread pool initialized", "threads", f.threadPoolCount)
+	tp.Init(int(threadPoolCount))
+	common.LogDebug("Thread pool initialized", "threads", threadPoolCount)
 
 	tw := component.GetTimingWheel()
 	tw.SetExpiredCallbacks(RequestStubCleanupExpiredFunc, RequestStubCleanupExpiredFuture)
 	tw.Init()
 	common.LogDebug("TimingWheel initialized")
+
+	cleanupIntervalMs := uint32(common.DefaultStubTimeoutMs / 4)
+	f.cleanupTimerId = tw.AddRepeatedTask(cleanupIntervalMs, cleanupIntervalMs, func() {
+		RequestStubCleanupExpiredFuncs()
+		RequestStubCleanupExpiredFutures()
+	})
+	common.LogDebug("Stub cleanup task registered", "interval_ms", cleanupIntervalMs, "timer_id", f.cleanupTimerId)
 
 	if f.ipcServer == nil {
 		common.LogError("IPC server is not initialized")
@@ -108,6 +125,11 @@ func (f *Framework) GetResponseRouter() *RouterBase[ResponseFilter, ResponseHand
 
 func (f *Framework) Shutdown() {
 	common.LogInfo("Tyke framework shutting down")
+
+	if f.cleanupTimerId != component.InvalidTimerId {
+		component.GetTimingWheel().CancelTask(f.cleanupTimerId)
+		f.cleanupTimerId = component.InvalidTimerId
+	}
 
 	if f.ipcServer != nil {
 		f.ipcServer.Stop()

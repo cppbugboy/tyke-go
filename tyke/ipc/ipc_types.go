@@ -3,7 +3,7 @@ package ipc
 const (
 	IPCDefaultTimeoutMs      = 5000
 	IPCDefaultMaxConnections = 4
-	IPCDefaultIdleTimeoutMs  = 60000
+	IPCDefaultIdleTimeoutMs  = 30000
 )
 
 type ClientId uint64

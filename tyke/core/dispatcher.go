@@ -14,7 +14,7 @@ func DispatchRequest(request *Request, response *Response) {
 	routeEntry := router.GetRouteEntry(request.GetRoute())
 	if routeEntry == nil {
 		common.LogWarn("Request route not found", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
-		response.SetResult(common.HttpStatusNotFound, "Not Found")
+		response.SetResult(int(common.StatusRouteError), "route not found")
 		return
 	}
 

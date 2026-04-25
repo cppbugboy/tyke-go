@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/tyke/tyke/tyke/common"
-	"github.com/tyke/tyke/tyke/controller"
 	"github.com/tyke/tyke/tyke/core"
 )
 
 type ExampleRequestController struct{}
 
-func NewExampleRequestController() controller.ControllerBase {
+func NewExampleRequestController() core.ControllerBase {
 	return &ExampleRequestController{}
 }
 
@@ -64,19 +63,19 @@ func (c *ExampleRequestController) validateRequest(request *core.Request, respon
 	contentType, content := request.GetContent()
 
 	if contentType != "json" {
-		response.SetResult(400, "Content type must be JSON")
+		response.SetResult(int(common.StatusContentError), "Content type must be JSON")
 		return false
 	}
 
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal(content, &jsonData); err != nil {
-		response.SetResult(400, "Invalid JSON format")
+		response.SetResult(int(common.StatusContentError), "Invalid JSON format")
 		return false
 	}
 
 	for _, field := range requiredFields {
 		if _, exists := jsonData[field]; !exists {
-			response.SetResult(400, "Missing required field: "+field)
+			response.SetResult(int(common.StatusContentError), "Missing required field: "+field)
 			return false
 		}
 	}
@@ -109,9 +108,9 @@ func (c *ExampleRequestController) HandleUserLogin(request *core.Request, respon
 
 		responseBytes, _ := json.Marshal(responseData)
 		response.SetContent(common.ContentTypeJson, responseBytes)
-		response.SetResult(200, "OK")
+		response.SetResult(int(common.StatusSuccess), "OK")
 	} else {
-		response.SetResult(401, "Invalid username or password")
+		response.SetResult(int(common.StatusContentError), "Invalid username or password")
 	}
 
 	response.SetModule(request.GetModule())
@@ -131,7 +130,7 @@ func (c *ExampleRequestController) HandleUserLogout(request *core.Request, respo
 
 	responseBytes, _ := json.Marshal(responseData)
 	response.SetContent(common.ContentTypeJson, responseBytes)
-	response.SetResult(200, "OK")
+	response.SetResult(int(common.StatusSuccess), "OK")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
@@ -154,7 +153,7 @@ func (c *ExampleRequestController) HandleDataQuery(request *core.Request, respon
 
 	responseBytes, _ := json.Marshal(responseData)
 	response.SetContent(common.ContentTypeJson, responseBytes)
-	response.SetResult(200, "OK")
+	response.SetResult(int(common.StatusSuccess), "OK")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
@@ -178,7 +177,7 @@ func (c *ExampleRequestController) HandleDataUpdate(request *core.Request, respo
 
 	responseBytes, _ := json.Marshal(responseData)
 	response.SetContent(common.ContentTypeJson, responseBytes)
-	response.SetResult(200, "OK")
+	response.SetResult(int(common.StatusSuccess), "OK")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
@@ -198,7 +197,7 @@ func (c *ExampleRequestController) HandleAsyncProcess(request *core.Request, res
 
 	responseBytes, _ := json.Marshal(responseData)
 	response.SetContent(common.ContentTypeJson, responseBytes)
-	response.SetResult(202, "Accepted")
+	response.SetResult(int(common.StatusSuccess), "Accepted")
 	response.SetModule(request.GetModule())
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())

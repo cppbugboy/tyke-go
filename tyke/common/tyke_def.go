@@ -19,6 +19,22 @@ const (
 var ProtocolMagic = [4]byte{'T', 'Y', 'K', 'E'}
 
 // ContentType 定义了消息内容的编码格式。
+type StatusCode int
+
+const (
+	StatusNone          StatusCode = 0
+	StatusSuccess       StatusCode = 1
+	StatusFailure       StatusCode = 2
+	StatusTimeout       StatusCode = 3
+	StatusMetadataError StatusCode = 4
+	StatusContentError  StatusCode = 5
+	StatusRouteError    StatusCode = 6
+	StatusModuleError   StatusCode = 7
+	StatusInternalError StatusCode = 8
+	StatusUnavailable   StatusCode = 9
+	StatusUnknownError  StatusCode = 10
+)
+
 type ContentType int
 
 const (

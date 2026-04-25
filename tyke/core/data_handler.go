@@ -2,8 +2,10 @@ package core
 
 import (
 	"encoding/binary"
+	"time"
 
 	"github.com/tyke/tyke/tyke/common"
+	"github.com/tyke/tyke/tyke/component"
 	"github.com/tyke/tyke/tyke/ipc"
 )
 
@@ -11,7 +13,7 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 	common.LogDebug("DataCallback invoked", "client_id", clientId, "data_size", len(dataVec))
 
 	if len(dataVec) <= common.ProtocolHeaderSize {
-		common.LogWarn("Data too short for protocol header", "size", len(dataVec))
+		common.LogWarn("Data too short for protocol header, discarding", "size", len(dataVec))
 		zero := uint32(0)
 		return &zero
 	}
@@ -23,39 +25,64 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 	header.MsgType = common.MessageType(binary.LittleEndian.Uint32(dataVec[offset:]))
 
 	if header.Magic != common.ProtocolMagic {
-		common.LogWarn("Protocol magic mismatch, discarding")
-		zero := uint32(0)
-		return &zero
+		common.LogWarn("Protocol magic mismatch, expected=TYKE, discarding", "bytes", len(dataVec))
+		return nil
 	}
 
-	common.LogDebug("Received message", "type", int(header.MsgType))
+	common.LogDebug("Received message", "type", int(header.MsgType), "metadata_len", header.MetadataLen, "content_len", header.ContentLen)
 
 	var used uint32
 
 	switch header.MsgType {
 	case common.MessageTypeRequest:
 		request := AcquireRequest()
-		defer ReleaseRequest(request)
 		if DecodeRequest(dataVec, request, &used) {
 			common.LogDebug("Processing sync request", "route", request.GetRoute())
 			RequestHandler(clientId, request, sendDataHandler)
+		} else {
+			if used == 0 {
+				common.LogWarn("Decode request failed, data incomplete, waiting for more data")
+				ReleaseRequest(request)
+				return nil
+			}
+			common.LogWarn("Decode request failed, invalid data, discarding")
+			ReleaseRequest(request)
+			zero := uint32(0)
+			return &zero
 		}
+		ReleaseRequest(request)
 
 	case common.MessageTypeRequestAsync, common.MessageTypeRequestAsyncFunc, common.MessageTypeRequestAsyncFuture:
 		request := AcquireRequest()
 		if DecodeRequest(dataVec, request, &used) {
-			common.LogDebug("Processing async request", "route", request.GetRoute())
+			common.LogDebug("Processing async request", "route", request.GetRoute(), "msg_type", int(header.MsgType))
 			RequestHandlerAsync(request)
 		} else {
+			if used == 0 {
+				common.LogWarn("Decode async request failed, data incomplete, waiting for more data")
+				ReleaseRequest(request)
+				return nil
+			}
+			common.LogWarn("Decode async request failed, invalid data, discarding")
 			ReleaseRequest(request)
+			zero := uint32(0)
+			return &zero
 		}
 
 	case common.MessageTypeResponseAsync, common.MessageTypeResponseAsyncFunc, common.MessageTypeResponseAsyncFuture:
 		response := NewTykeResponse()
-		defer ReleaseResponse(response)
 		if DecodeResponse(dataVec, response, &used) {
-			common.LogDebug("Processing async response", "route", response.GetRoute())
+			common.LogDebug("Processing async response", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 			ResponseHandler(response)
+		} else {
+			ReleaseResponse(response)
+			if used == 0 {
+				common.LogWarn("Decode async response failed, data incomplete, waiting for more data")
+				return nil
+			}
+			common.LogWarn("Decode async response failed, invalid data, discarding")
+			zero := uint32(0)
+			return &zero
 		}
 
 	default:
@@ -65,11 +92,10 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 	return &used
 }
 
-func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler SendDataHandler) {
+func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler SendDataHandler) {
 	common.LogDebug("RequestHandler", "client_id", clientId, "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
 	response := NewTykeResponse()
-	defer ReleaseResponse(response)
 	response.SetClientId(clientId).
 		SetMessageType(common.MessageTypeResponse).
 		SetModule(request.GetModule()).
@@ -78,20 +104,50 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 		SetAsyncUUID(request.GetAsyncUUID()).
 		SetSendDataHandler(sendDataHandler)
 
+	timeoutMs := request.GetTimeout()
+	if timeoutMs == 0 {
+		timeoutMs = uint64(common.DefaultTimeoutMs)
+	}
+
+	ctx, _ := component.ContextWithTimeout(component.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	timerCtx, ok := ctx.(*component.TimerContext)
+	if !ok {
+		common.LogError("Failed to cast context to TimerContext")
+		response.SetResult(int(common.StatusInternalError), "internal error")
+		if sendResult := response.Send(); !sendResult.HasValue() {
+			common.LogError("Send response failed", "error", sendResult.Err)
+		}
+		ReleaseResponse(response)
+		return
+	}
+
+	token := timerCtx.RegisterCallback(func() {
+		response.SetResult(int(common.StatusTimeout), "timeout")
+		if sendResult := response.Send(); !sendResult.HasValue() {
+			common.LogError("Send response failed", "error", sendResult.Err)
+		}
+	})
+	timerCtx.ActivateTimer()
+
 	DispatchRequest(request, response)
 
-	if sendResult := response.Send(); !sendResult.HasValue() {
-		common.LogError("Send response failed", "error", sendResult.Err)
+	if !response.IsSent() {
+		timerCtx.UnregisterCallback(token)
+		if sendResult := response.Send(); !sendResult.HasValue() {
+			common.LogError("Send response failed", "error", sendResult.Err)
+		}
 	}
+
+	ReleaseResponse(response)
 }
 
-func RequestHandlerAsync(request *Request) {
+func RequestHandlerAsync(request *TykeRequest) {
 	defer ReleaseRequest(request)
 	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
 	response := NewTykeResponse()
-	defer ReleaseResponse(response)
 	response.SetAsyncUUID(request.GetAsyncUUID()).
+		SetMessageType(common.MessageTypeResponseAsync).
 		SetModule(request.GetModule()).
 		SetMsgUUID(request.GetMsgUUID()).
 		SetRoute(request.GetRoute())
@@ -105,15 +161,45 @@ func RequestHandlerAsync(request *Request) {
 		response.SetMessageType(common.MessageTypeResponseAsyncFuture)
 	}
 
+	timeoutMs := request.GetTimeout()
+	if timeoutMs == 0 {
+		timeoutMs = uint64(common.DefaultTimeoutMs)
+	}
+
+	ctx, _ := component.ContextWithTimeout(component.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	timerCtx, ok := ctx.(*component.TimerContext)
+	if !ok {
+		common.LogError("Failed to cast context to TimerContext")
+		response.SetResult(int(common.StatusInternalError), "internal error")
+		if sendResult := response.SendAsync(); !sendResult.HasValue() {
+			common.LogError("Send async response failed", "error", sendResult.Err)
+		}
+		ReleaseResponse(response)
+		return
+	}
+
+	token := timerCtx.RegisterCallback(func() {
+		response.SetResult(int(common.StatusTimeout), "timeout")
+		if sendResult := response.SendAsync(); !sendResult.HasValue() {
+			common.LogError("Send async response failed", "error", sendResult.Err)
+		}
+	})
+	timerCtx.ActivateTimer()
+
 	DispatchRequest(request, response)
 
-	if sendResult := response.SendAsync(); !sendResult.HasValue() {
-		common.LogError("Send async response failed", "error", sendResult.Err)
+	if !response.IsSent() {
+		timerCtx.UnregisterCallback(token)
+		if sendResult := response.SendAsync(); !sendResult.HasValue() {
+			common.LogError("Send async response failed", "error", sendResult.Err)
+		}
 	}
+
+	ReleaseResponse(response)
 }
 
-func ResponseHandler(response *Response) {
-	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
+func ResponseHandler(response *TykeResponse) {
+	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID(), "msg_type", int(response.GetMessageType()))
 
 	switch response.GetMessageType() {
 	case common.MessageTypeResponseAsync:

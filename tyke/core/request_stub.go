@@ -9,13 +9,13 @@ import (
 )
 
 type futureEntry struct {
-	ch        chan *Response
+	ch        chan *TykeResponse
 	createdAt time.Time
 	timeoutMs uint32
 }
 
 type funcEntry struct {
-	fn        func(*Response)
+	fn        func(*TykeResponse)
 	createdAt time.Time
 	timeoutMs uint32
 }
@@ -27,7 +27,7 @@ var (
 	uuidFuncMapMu   sync.Mutex
 )
 
-func RequestStubAddFuture(uuid string, ch chan *Response, timeoutMs uint32) {
+func RequestStubAddFuture(uuid string, ch chan *TykeResponse, timeoutMs uint32) {
 	uuidFutureMapMu.Lock()
 	uuidFutureMap[uuid] = futureEntry{ch: ch, createdAt: time.Now(), timeoutMs: timeoutMs}
 	uuidFutureMapMu.Unlock()
@@ -35,8 +35,8 @@ func RequestStubAddFuture(uuid string, ch chan *Response, timeoutMs uint32) {
 	common.LogDebug("Future entry added", "uuid", uuid, "timeout", timeoutMs)
 }
 
-func RequestStubSetFuture(response *Response) {
-	var extractedCh chan *Response
+func RequestStubSetFuture(response *TykeResponse) {
+	var extractedCh chan *TykeResponse
 	found := false
 
 	uuidFutureMapMu.Lock()
@@ -52,16 +52,15 @@ func RequestStubSetFuture(response *Response) {
 
 	if found {
 		component.GetTimingWheel().RemoveTask(response.GetMsgUUID())
-		respCopy := *response
 		select {
-		case extractedCh <- &respCopy:
+		case extractedCh <- response:
 		default:
 			common.LogWarn("Future channel full, dropping response", "uuid", response.GetMsgUUID())
 		}
 	}
 }
 
-func RequestStubAddFunc(uuid string, fn func(*Response), timeoutMs uint32) {
+func RequestStubAddFunc(uuid string, fn func(*TykeResponse), timeoutMs uint32) {
 	uuidFuncMapMu.Lock()
 	uuidFuncMap[uuid] = funcEntry{fn: fn, createdAt: time.Now(), timeoutMs: timeoutMs}
 	uuidFuncMapMu.Unlock()
@@ -69,8 +68,8 @@ func RequestStubAddFunc(uuid string, fn func(*Response), timeoutMs uint32) {
 	common.LogDebug("Callback entry added", "uuid", uuid, "timeout", timeoutMs)
 }
 
-func RequestStubExecFunc(response *Response) {
-	var extractedFn func(*Response)
+func RequestStubExecFunc(response *TykeResponse) {
+	var extractedFn func(*TykeResponse)
 	found := false
 
 	uuidFuncMapMu.Lock()
@@ -91,7 +90,7 @@ func RequestStubExecFunc(response *Response) {
 }
 
 func RequestStubCleanupExpiredFuture(uuid string) {
-	var extractedCh chan *Response
+	var extractedCh chan *TykeResponse
 	found := false
 
 	uuidFutureMapMu.Lock()
@@ -106,7 +105,7 @@ func RequestStubCleanupExpiredFuture(uuid string) {
 	if found {
 		timeoutResp := NewTykeResponse()
 		timeoutResp.SetMsgUUID(uuid)
-		timeoutResp.SetResult(-1, "timeout")
+		timeoutResp.SetResult(int(common.StatusTimeout), "future timeout")
 		select {
 		case extractedCh <- timeoutResp:
 		default:
@@ -124,7 +123,41 @@ func RequestStubCleanupExpiredFunc(uuid string) {
 	uuidFuncMapMu.Unlock()
 }
 
-func RequestStubExecFuncOrSetFuture(response *Response) bool {
+func RequestStubCleanupExpiredFutures() {
+	now := time.Now()
+	var expired []string
+
+	uuidFutureMapMu.Lock()
+	for uuid, entry := range uuidFutureMap {
+		if now.Sub(entry.createdAt) >= time.Duration(entry.timeoutMs)*time.Millisecond {
+			expired = append(expired, uuid)
+		}
+	}
+	uuidFutureMapMu.Unlock()
+
+	for _, uuid := range expired {
+		RequestStubCleanupExpiredFuture(uuid)
+	}
+}
+
+func RequestStubCleanupExpiredFuncs() {
+	now := time.Now()
+	var expired []string
+
+	uuidFuncMapMu.Lock()
+	for uuid, entry := range uuidFuncMap {
+		if now.Sub(entry.createdAt) >= time.Duration(entry.timeoutMs)*time.Millisecond {
+			expired = append(expired, uuid)
+		}
+	}
+	uuidFuncMapMu.Unlock()
+
+	for _, uuid := range expired {
+		RequestStubCleanupExpiredFunc(uuid)
+	}
+}
+
+func RequestStubExecFuncOrSetFuture(response *TykeResponse) bool {
 	uuid := response.GetMsgUUID()
 
 	uuidFuncMapMu.Lock()
@@ -148,9 +181,8 @@ func RequestStubExecFuncOrSetFuture(response *Response) bool {
 
 		component.GetTimingWheel().RemoveTask(uuid)
 		common.LogDebug("Setting fallback future for response", "uuid", uuid)
-		respCopy := *response
 		select {
-		case extractedCh <- &respCopy:
+		case extractedCh <- response:
 		default:
 			common.LogWarn("Fallback future channel full, dropping response", "uuid", uuid)
 		}

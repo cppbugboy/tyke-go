@@ -7,7 +7,6 @@ import (
 	"syscall"
 
 	"github.com/tyke/tyke/examples/controllers"
-	"github.com/tyke/tyke/tyke/controller"
 	"github.com/tyke/tyke/tyke/core"
 )
 
@@ -21,8 +20,8 @@ func main() {
 	framework.SetThreadPoolCount(4)
 	framework.SetLogConfig("./tyke_server.log", "debug", 1024, 5)
 
-	controller.RegisterController(controllers.NewExampleRequestController())
-	controller.RegisterController(controllers.NewExampleResponseController())
+	core.RegisterController(controllers.NewExampleRequestController())
+	core.RegisterController(controllers.NewExampleResponseController())
 
 	result := framework.Start("tyke_server_example")
 	if !result.HasValue() {
@@ -38,5 +37,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
-	fmt.Println("\n服务端已关闭")
+	fmt.Println("\n正在关闭服务端...")
+	framework.Shutdown()
+	fmt.Println("服务端已关闭")
 }

@@ -22,6 +22,7 @@ func (r RequestMetadata) MarshalJSON() ([]byte, error) {
 		"route":        r.Route,
 		"content_type": r.ContentType,
 		"timestamp":    r.Timestamp,
+		"timeout":      r.Timeout,
 	}
 	for k, v := range r.HeadersMap {
 		if _, exists := raw[k]; !exists {
@@ -42,6 +43,7 @@ func (r *RequestMetadata) UnmarshalJSON(data []byte) error {
 	r.Route = jsonStringField(raw, "route")
 	r.ContentType = jsonStringField(raw, "content_type")
 	r.Timestamp = jsonStringField(raw, "timestamp")
+	r.Timeout = jsonUint64Field(raw, "timeout")
 	if r.HeadersMap == nil {
 		r.HeadersMap = make(map[string]common.JsonValue)
 	}
@@ -55,7 +57,7 @@ func (r *RequestMetadata) UnmarshalJSON(data []byte) error {
 
 var RequestMetadataKnownKeys = map[string]bool{
 	"module": true, "async_uuid": true, "msg_uuid": true,
-	"route": true, "content_type": true, "timestamp": true,
+	"route": true, "content_type": true, "timestamp": true, "timeout": true,
 }
 
 func (r *RequestMetadata) FromJsonString(jsonStr string) error {
