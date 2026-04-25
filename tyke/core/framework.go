@@ -8,8 +8,8 @@ import (
 	"github.com/tyke/tyke/tyke/ipc"
 )
 
-// TykeFramework 是框架的主入口，管理生命周期和配置。
-type TykeFramework struct {
+// Framework 是框架的主入口，管理生命周期和配置。
+type Framework struct {
 	threadPoolCount uint32
 	logPath         string
 	logLevel        string
@@ -19,14 +19,14 @@ type TykeFramework struct {
 }
 
 var (
-	frameworkInstance *TykeFramework
+	frameworkInstance *Framework
 	frameworkOnce     sync.Once
 )
 
-// App 返回 TykeFramework 单例实例。
-func App() *TykeFramework {
+// App 返回 Framework 单例实例。
+func App() *Framework {
 	frameworkOnce.Do(func() {
-		frameworkInstance = &TykeFramework{
+		frameworkInstance = &Framework{
 			threadPoolCount: 4,
 			logLevel:        "info",
 			fileSizeMb:      1024,
@@ -37,12 +37,12 @@ func App() *TykeFramework {
 	return frameworkInstance
 }
 
-func (f *TykeFramework) SetThreadPoolCount(count uint32) *TykeFramework {
+func (f *Framework) SetThreadPoolCount(count uint32) *Framework {
 	f.threadPoolCount = count
 	return f
 }
 
-func (f *TykeFramework) SetLogConfig(logPath string, logLevel string, fileSizeMb uint32, fileCount uint32) *TykeFramework {
+func (f *Framework) SetLogConfig(logPath string, logLevel string, fileSizeMb uint32, fileCount uint32) *Framework {
 	f.logPath = logPath
 	f.logLevel = logLevel
 	f.fileSizeMb = fileSizeMb
@@ -54,7 +54,7 @@ func (f *TykeFramework) SetLogConfig(logPath string, logLevel string, fileSizeMb
 	return f
 }
 
-func (f *TykeFramework) Start(listenUuid string) common.BoolResult {
+func (f *Framework) Start(listenUuid string) common.BoolResult {
 	logInstance := GetTykeLogInstance()
 	if !logInstance.IsInitialized() {
 		logPath := f.logPath
@@ -98,15 +98,15 @@ func (f *TykeFramework) Start(listenUuid string) common.BoolResult {
 	return common.OkBool(true)
 }
 
-func (f *TykeFramework) GetRequestRouter() *RouterBase[RequestFilter, RequestHandlerFunc] {
+func (f *Framework) GetRequestRouter() *RouterBase[RequestFilter, RequestHandlerFunc] {
 	return GetRequestRouterInstance()
 }
 
-func (f *TykeFramework) GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
+func (f *Framework) GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
 	return GetResponseRouterInstance()
 }
 
-func (f *TykeFramework) Shutdown() {
+func (f *Framework) Shutdown() {
 	common.LogInfo("Tyke framework shutting down")
 
 	if f.ipcServer != nil {

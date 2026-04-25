@@ -10,7 +10,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-type TykeLog struct {
+type LogConfig struct {
 	logger           *slog.Logger
 	file             *os.File
 	multiWriter      io.Writer
@@ -18,18 +18,18 @@ type TykeLog struct {
 }
 
 var (
-	tykeLogInstance *TykeLog
+	tykeLogInstance *LogConfig
 	tykeLogOnce     sync.Once
 )
 
-func GetTykeLogInstance() *TykeLog {
+func GetTykeLogInstance() *LogConfig {
 	tykeLogOnce.Do(func() {
-		tykeLogInstance = &TykeLog{}
+		tykeLogInstance = &LogConfig{}
 	})
 	return tykeLogInstance
 }
 
-func (t *TykeLog) Init(logPath string, logLevel string, fileSizeMb uint32, fileCount uint32) common.BoolResult {
+func (t *LogConfig) Init(logPath string, logLevel string, fileSizeMb uint32, fileCount uint32) common.BoolResult {
 	if t.logger != nil {
 		t.SetLogLevel(logLevel)
 		return common.OkBool(true)
@@ -69,11 +69,11 @@ func (t *TykeLog) Init(logPath string, logLevel string, fileSizeMb uint32, fileC
 	return common.OkBool(true)
 }
 
-func (t *TykeLog) IsInitialized() bool {
+func (t *LogConfig) IsInitialized() bool {
 	return t.logger != nil
 }
 
-func (t *TykeLog) SetLogLevel(logLevel string) {
+func (t *LogConfig) SetLogLevel(logLevel string) {
 	if t.logger == nil {
 		return
 	}
@@ -99,7 +99,7 @@ func (t *TykeLog) SetLogLevel(logLevel string) {
 	slog.SetDefault(t.logger)
 }
 
-func (t *TykeLog) Stop() {
+func (t *LogConfig) Stop() {
 	if t.logger != nil {
 		common.LogInfo("Tyke log system shutting down")
 		if t.lumberjackWriter != nil {

@@ -65,7 +65,7 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 	return &used
 }
 
-func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler SendDataHandler) {
+func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler SendDataHandler) {
 	common.LogDebug("RequestHandler", "client_id", clientId, "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
 	response := NewTykeResponse()
@@ -85,7 +85,7 @@ func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler
 	}
 }
 
-func RequestHandlerAsync(request *TykeRequest) {
+func RequestHandlerAsync(request *Request) {
 	defer ReleaseRequest(request)
 	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
@@ -112,7 +112,7 @@ func RequestHandlerAsync(request *TykeRequest) {
 	}
 }
 
-func ResponseHandler(response *TykeResponse) {
+func ResponseHandler(response *Response) {
 	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 
 	switch response.GetMessageType() {

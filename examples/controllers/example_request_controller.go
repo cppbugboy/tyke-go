@@ -31,7 +31,7 @@ func (c *ExampleRequestController) RegisterMethod() {
 	fmt.Println("✓ 请求路由处理器注册完成")
 }
 
-func (c *ExampleRequestController) logRequest(request *core.TykeRequest, handlerName string) {
+func (c *ExampleRequestController) logRequest(request *core.Request, handlerName string) {
 	now := time.Now()
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("[%s] 请求处理器: %s\n", now.Format("2006-01-02 15:04:05"), handlerName)
@@ -50,7 +50,7 @@ func (c *ExampleRequestController) logRequest(request *core.TykeRequest, handler
 	}
 }
 
-func (c *ExampleRequestController) logResponse(response *core.TykeResponse, handlerName string) {
+func (c *ExampleRequestController) logResponse(response *core.Response, handlerName string) {
 	now := time.Now()
 	status, reason := response.GetResult()
 
@@ -60,7 +60,7 @@ func (c *ExampleRequestController) logResponse(response *core.TykeResponse, hand
 	fmt.Printf("========================================\n\n")
 }
 
-func (c *ExampleRequestController) validateRequest(request *core.TykeRequest, response *core.TykeResponse, requiredFields []string) bool {
+func (c *ExampleRequestController) validateRequest(request *core.Request, response *core.Response, requiredFields []string) bool {
 	contentType, content := request.GetContent()
 
 	if contentType != "json" {
@@ -84,7 +84,7 @@ func (c *ExampleRequestController) validateRequest(request *core.TykeRequest, re
 	return true
 }
 
-func (c *ExampleRequestController) HandleUserLogin(request *core.TykeRequest, response *core.TykeResponse) {
+func (c *ExampleRequestController) HandleUserLogin(request *core.Request, response *core.Response) {
 	c.logRequest(request, "HandleUserLogin")
 
 	if !c.validateRequest(request, response, []string{"username", "password"}) {
@@ -121,7 +121,7 @@ func (c *ExampleRequestController) HandleUserLogin(request *core.TykeRequest, re
 	c.logResponse(response, "HandleUserLogin")
 }
 
-func (c *ExampleRequestController) HandleUserLogout(request *core.TykeRequest, response *core.TykeResponse) {
+func (c *ExampleRequestController) HandleUserLogout(request *core.Request, response *core.Response) {
 	c.logRequest(request, "HandleUserLogout")
 
 	responseData := map[string]interface{}{
@@ -139,7 +139,7 @@ func (c *ExampleRequestController) HandleUserLogout(request *core.TykeRequest, r
 	c.logResponse(response, "HandleUserLogout")
 }
 
-func (c *ExampleRequestController) HandleDataQuery(request *core.TykeRequest, response *core.TykeResponse) {
+func (c *ExampleRequestController) HandleDataQuery(request *core.Request, response *core.Response) {
 	c.logRequest(request, "HandleDataQuery")
 
 	responseData := map[string]interface{}{
@@ -162,7 +162,7 @@ func (c *ExampleRequestController) HandleDataQuery(request *core.TykeRequest, re
 	c.logResponse(response, "HandleDataQuery")
 }
 
-func (c *ExampleRequestController) HandleDataUpdate(request *core.TykeRequest, response *core.TykeResponse) {
+func (c *ExampleRequestController) HandleDataUpdate(request *core.Request, response *core.Response) {
 	c.logRequest(request, "HandleDataUpdate")
 
 	if !c.validateRequest(request, response, []string{"id", "data"}) {
@@ -186,7 +186,7 @@ func (c *ExampleRequestController) HandleDataUpdate(request *core.TykeRequest, r
 	c.logResponse(response, "HandleDataUpdate")
 }
 
-func (c *ExampleRequestController) HandleAsyncProcess(request *core.TykeRequest, response *core.TykeResponse) {
+func (c *ExampleRequestController) HandleAsyncProcess(request *core.Request, response *core.Response) {
 	c.logRequest(request, "HandleAsyncProcess")
 
 	responseData := map[string]interface{}{

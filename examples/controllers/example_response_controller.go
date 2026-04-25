@@ -28,7 +28,7 @@ func (c *ExampleResponseController) RegisterMethod() {
 	fmt.Println("✓ 响应路由处理器注册完成")
 }
 
-func (c *ExampleResponseController) logResponse(response *core.TykeResponse, handlerName string) {
+func (c *ExampleResponseController) logResponse(response *core.Response, handlerName string) {
 	now := time.Now()
 	status, reason := response.GetResult()
 
@@ -52,7 +52,7 @@ func (c *ExampleResponseController) logResponse(response *core.TykeResponse, han
 	fmt.Printf("========================================\n\n")
 }
 
-func (c *ExampleResponseController) HandleAsyncCallback(response *core.TykeResponse) {
+func (c *ExampleResponseController) HandleAsyncCallback(response *core.Response) {
 	c.logResponse(response, "HandleAsyncCallback")
 
 	fmt.Println("处理异步回调响应...")
@@ -60,7 +60,7 @@ func (c *ExampleResponseController) HandleAsyncCallback(response *core.TykeRespo
 	fmt.Println("✓ 异步回调处理完成")
 }
 
-func (c *ExampleResponseController) HandleAsyncNotification(response *core.TykeResponse) {
+func (c *ExampleResponseController) HandleAsyncNotification(response *core.Response) {
 	c.logResponse(response, "HandleAsyncNotification")
 
 	fmt.Println("处理异步通知响应...")

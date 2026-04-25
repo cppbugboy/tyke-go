@@ -19,7 +19,7 @@ const (
 	clientListenerUuid = "tyke_client_listener_go"
 )
 
-func printRequestHeader(title string, targetUuid string, request *core.TykeRequest) {
+func printRequestHeader(title string, targetUuid string, request *core.Request) {
 	now := time.Now()
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("[%s] %s\n", now.Format("2006-01-02 15:04:05"), title)
@@ -42,7 +42,7 @@ func printRequestHeader(title string, targetUuid string, request *core.TykeReque
 	}
 }
 
-func printSyncResponse(response *core.TykeResponse) {
+func printSyncResponse(response *core.Response) {
 	now := time.Now()
 	status, reason := response.GetResult()
 
@@ -64,7 +64,7 @@ func printSyncResponse(response *core.TykeResponse) {
 	fmt.Printf("========================================\n")
 }
 
-func printAsyncResponse(response *core.TykeResponse, methodName string) {
+func printAsyncResponse(response *core.Response, methodName string) {
 	now := time.Now()
 	status, reason := response.GetResult()
 
@@ -107,7 +107,7 @@ func demoSyncRequest() {
 
 	printRequestHeader("发送同步请求", serverUuid, request)
 
-	var response core.TykeResponse
+	var response core.Response
 	result := request.Send(serverUuid, &response)
 	if result.HasValue() {
 		printSyncResponse(&response)
@@ -162,7 +162,7 @@ func demoSendAsyncWithFunc() {
 
 	printRequestHeader("发送异步请求 (SendAsyncWithFunc)", serverUuid, request)
 
-	result := request.SendAsyncWithFunc(serverUuid, func(response *core.TykeResponse) {
+	result := request.SendAsyncWithFunc(serverUuid, func(response *core.Response) {
 		printAsyncResponse(response, "SendAsyncWithFunc 回调")
 	})
 

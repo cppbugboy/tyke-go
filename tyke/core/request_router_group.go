@@ -1,6 +1,6 @@
 package core
 
-type RequestHandlerFunc func(request *TykeRequest, response *TykeResponse)
+type RequestHandlerFunc func(request *Request, response *Response)
 
 type RequestRouteEntry = RouteEntry[RequestFilter, RequestHandlerFunc]
 

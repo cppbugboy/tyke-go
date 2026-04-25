@@ -1,6 +1,6 @@
 package core
 
-type ResponseHandlerFunc func(response *TykeResponse)
+type ResponseHandlerFunc func(response *Response)
 
 type ResponseRouteEntry = RouteEntry[ResponseFilter, ResponseHandlerFunc]
 

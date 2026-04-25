@@ -9,13 +9,13 @@ import (
 )
 
 type futureEntry struct {
-	ch        chan *TykeResponse
+	ch        chan *Response
 	createdAt time.Time
 	timeoutMs uint32
 }
 
 type funcEntry struct {
-	fn        func(*TykeResponse)
+	fn        func(*Response)
 	createdAt time.Time
 	timeoutMs uint32
 }
@@ -27,7 +27,7 @@ var (
 	uuidFuncMapMu   sync.Mutex
 )
 
-func RequestStubAddFuture(uuid string, ch chan *TykeResponse, timeoutMs uint32) {
+func RequestStubAddFuture(uuid string, ch chan *Response, timeoutMs uint32) {
 	uuidFutureMapMu.Lock()
 	uuidFutureMap[uuid] = futureEntry{ch: ch, createdAt: time.Now(), timeoutMs: timeoutMs}
 	uuidFutureMapMu.Unlock()
@@ -35,8 +35,8 @@ func RequestStubAddFuture(uuid string, ch chan *TykeResponse, timeoutMs uint32) 
 	common.LogDebug("Future entry added", "uuid", uuid, "timeout", timeoutMs)
 }
 
-func RequestStubSetFuture(response *TykeResponse) {
-	var extractedCh chan *TykeResponse
+func RequestStubSetFuture(response *Response) {
+	var extractedCh chan *Response
 	found := false
 
 	uuidFutureMapMu.Lock()
@@ -61,7 +61,7 @@ func RequestStubSetFuture(response *TykeResponse) {
 	}
 }
 
-func RequestStubAddFunc(uuid string, fn func(*TykeResponse), timeoutMs uint32) {
+func RequestStubAddFunc(uuid string, fn func(*Response), timeoutMs uint32) {
 	uuidFuncMapMu.Lock()
 	uuidFuncMap[uuid] = funcEntry{fn: fn, createdAt: time.Now(), timeoutMs: timeoutMs}
 	uuidFuncMapMu.Unlock()
@@ -69,8 +69,8 @@ func RequestStubAddFunc(uuid string, fn func(*TykeResponse), timeoutMs uint32) {
 	common.LogDebug("Callback entry added", "uuid", uuid, "timeout", timeoutMs)
 }
 
-func RequestStubExecFunc(response *TykeResponse) {
-	var extractedFn func(*TykeResponse)
+func RequestStubExecFunc(response *Response) {
+	var extractedFn func(*Response)
 	found := false
 
 	uuidFuncMapMu.Lock()
@@ -91,7 +91,7 @@ func RequestStubExecFunc(response *TykeResponse) {
 }
 
 func RequestStubCleanupExpiredFuture(uuid string) {
-	var extractedCh chan *TykeResponse
+	var extractedCh chan *Response
 	found := false
 
 	uuidFutureMapMu.Lock()
@@ -124,7 +124,7 @@ func RequestStubCleanupExpiredFunc(uuid string) {
 	uuidFuncMapMu.Unlock()
 }
 
-func RequestStubExecFuncOrSetFuture(response *TykeResponse) bool {
+func RequestStubExecFuncOrSetFuture(response *Response) bool {
 	uuid := response.GetMsgUUID()
 
 	uuidFuncMapMu.Lock()

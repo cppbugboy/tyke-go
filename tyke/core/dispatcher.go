@@ -6,7 +6,7 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
-func DispatchRequest(request *TykeRequest, response *TykeResponse) {
+func DispatchRequest(request *Request, response *Response) {
 	start := time.Now()
 	common.LogDebug("Dispatching request", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
@@ -39,7 +39,7 @@ func DispatchRequest(request *TykeRequest, response *TykeResponse) {
 	common.LogInfo("Request dispatched", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID(), "elapsed", elapsed)
 }
 
-func DispatchResponse(response *TykeResponse) {
+func DispatchResponse(response *Response) {
 	common.LogDebug("Dispatching response", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 
 	router := GetResponseRouterInstance()

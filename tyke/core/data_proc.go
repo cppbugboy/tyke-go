@@ -8,27 +8,27 @@ import (
 	"github.com/tyke/tyke/tyke/common"
 )
 
-func EncodeRequest(request *TykeRequest) ([]byte, error) {
+func EncodeRequest(request *Request) ([]byte, error) {
 	common.LogInfo("Encoding request", "route", request.GetRoute())
 	return encodeRequest(request)
 }
 
-func DecodeRequest(dataVec []byte, request *TykeRequest, dataSize *uint32) bool {
+func DecodeRequest(dataVec []byte, request *Request, dataSize *uint32) bool {
 	common.LogInfo("Decoding request", "size", len(dataVec))
 	return decode(dataVec, request, dataSize)
 }
 
-func EncodeResponse(response *TykeResponse) ([]byte, error) {
+func EncodeResponse(response *Response) ([]byte, error) {
 	common.LogInfo("Encoding response", "route", response.GetRoute())
 	return encodeResponse(response)
 }
 
-func DecodeResponse(dataVec []byte, response *TykeResponse, dataSize *uint32) bool {
+func DecodeResponse(dataVec []byte, response *Response, dataSize *uint32) bool {
 	common.LogInfo("Decoding response", "size", len(dataVec))
 	return decode(dataVec, response, dataSize)
 }
 
-func encodeRequest(request *TykeRequest) ([]byte, error) {
+func encodeRequest(request *Request) ([]byte, error) {
 	metadataBytes, err := json.Marshal(&request.metadata)
 	if err != nil {
 		return nil, fmt.Errorf("metadata serialization failed: %w", err)
@@ -36,7 +36,7 @@ func encodeRequest(request *TykeRequest) ([]byte, error) {
 	return encodeCommon(&request.protocolHeader, string(metadataBytes), request.content)
 }
 
-func encodeResponse(response *TykeResponse) ([]byte, error) {
+func encodeResponse(response *Response) ([]byte, error) {
 	metadataBytes, err := json.Marshal(&response.metadata)
 	if err != nil {
 		return nil, fmt.Errorf("metadata serialization failed: %w", err)
@@ -89,13 +89,13 @@ type decodable interface {
 	setContent([]byte)
 }
 
-func (r *TykeRequest) setProtocolHeader(ph common.ProtocolHeader) { r.protocolHeader = ph }
-func (r *TykeRequest) setMetadataFromJson(s string) error         { return r.metadata.FromJsonString(s) }
-func (r *TykeRequest) setContent(c []byte)                        { r.content = c }
+func (r *Request) setProtocolHeader(ph common.ProtocolHeader) { r.protocolHeader = ph }
+func (r *Request) setMetadataFromJson(s string) error         { return r.metadata.FromJsonString(s) }
+func (r *Request) setContent(c []byte)                        { r.content = c }
 
-func (r *TykeResponse) setProtocolHeader(ph common.ProtocolHeader) { r.protocolHeader = ph }
-func (r *TykeResponse) setMetadataFromJson(s string) error         { return r.metadata.FromJsonString(s) }
-func (r *TykeResponse) setContent(c []byte)                        { r.content = c }
+func (r *Response) setProtocolHeader(ph common.ProtocolHeader) { r.protocolHeader = ph }
+func (r *Response) setMetadataFromJson(s string) error         { return r.metadata.FromJsonString(s) }
+func (r *Response) setContent(c []byte)                        { r.content = c }
 
 func decode(dataVec []byte, msg decodable, dataSize *uint32) bool {
 	*dataSize = 0
