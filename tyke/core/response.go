@@ -10,7 +10,7 @@ import (
 
 type SendDataHandler func(clientId ipc.ClientId, data []byte) bool
 
-type TykeResponse struct {
+type Response struct {
 	protocolHeader  common.ProtocolHeader
 	metadata        ResponseMetadata
 	content         []byte
@@ -19,24 +19,24 @@ type TykeResponse struct {
 	sendDataHandler SendDataHandler
 }
 
-var responsePool = component.NewObjectPool(func() *TykeResponse {
-	return &TykeResponse{
+var responsePool = component.NewObjectPool(func() *Response {
+	return &Response{
 		protocolHeader: common.ProtocolHeader{Magic: common.ProtocolMagic},
 		metadata:       NewResponseMetadata(),
 	}
 })
 
 func init() {
-	responsePool.SetReset(func(resp *TykeResponse) {
+	responsePool.SetReset(func(resp *Response) {
 		resp.Reset()
 	})
 }
 
-func NewTykeResponse() *TykeResponse {
+func AcquireResponse() *Response {
 	return responsePool.Acquire()
 }
 
-func ReleaseResponse(resp *TykeResponse) {
+func ReleaseResponse(resp *Response) {
 	if resp != nil {
 		common.LogDebug("Releasing response object to pool", "msg_uuid", resp.GetMsgUUID())
 		resp.Reset()
@@ -44,7 +44,7 @@ func ReleaseResponse(resp *TykeResponse) {
 	}
 }
 
-func (r *TykeResponse) Reset() {
+func (r *Response) Reset() {
 	r.protocolHeader = common.ProtocolHeader{Magic: common.ProtocolMagic}
 	r.metadata = NewResponseMetadata()
 	r.content = nil
@@ -53,97 +53,97 @@ func (r *TykeResponse) Reset() {
 	r.sendDataHandler = nil
 }
 
-func (r *TykeResponse) GetMagic() [4]byte {
+func (r *Response) GetMagic() [4]byte {
 	return r.protocolHeader.Magic
 }
 
-func (r *TykeResponse) SetMessageType(msgType common.MessageType) *TykeResponse {
+func (r *Response) SetMessageType(msgType common.MessageType) *Response {
 	r.protocolHeader.MsgType = msgType
 	return r
 }
 
-func (r *TykeResponse) GetMessageType() common.MessageType {
+func (r *Response) GetMessageType() common.MessageType {
 	return r.protocolHeader.MsgType
 }
 
-func (r *TykeResponse) SetModule(module string) *TykeResponse {
+func (r *Response) SetModule(module string) *Response {
 	r.metadata.SetModule(module)
 	return r
 }
 
-func (r *TykeResponse) GetModule() string {
+func (r *Response) GetModule() string {
 	return r.metadata.GetModule()
 }
 
-func (r *TykeResponse) SetMsgUUID(msgUuid string) *TykeResponse {
+func (r *Response) SetMsgUUID(msgUuid string) *Response {
 	r.metadata.SetMsgUUID(msgUuid)
 	return r
 }
 
-func (r *TykeResponse) GetMsgUUID() string {
+func (r *Response) GetMsgUUID() string {
 	return r.metadata.GetMsgUUID()
 }
 
-func (r *TykeResponse) SetRoute(route string) *TykeResponse {
+func (r *Response) SetRoute(route string) *Response {
 	r.metadata.SetRoute(route)
 	return r
 }
 
-func (r *TykeResponse) GetRoute() string {
+func (r *Response) GetRoute() string {
 	return r.metadata.GetRoute()
 }
 
-func (r *TykeResponse) SetContent(contentType common.ContentType, content []byte) *TykeResponse {
+func (r *Response) SetContent(contentType common.ContentType, content []byte) *Response {
 	r.metadata.SetContentType(common.ContentTypeMap[contentType])
 	r.content = content
 	return r
 }
 
-func (r *TykeResponse) GetContent() (string, []byte) {
+func (r *Response) GetContent() (string, []byte) {
 	return r.metadata.GetContentType(), r.content
 }
 
-func (r *TykeResponse) AddMetadata(key string, value common.JsonValue) common.BoolResult {
+func (r *Response) AddMetadata(key string, value common.JsonValue) common.BoolResult {
 	return r.metadata.AddMetadata(key, value)
 }
 
-func (r *TykeResponse) GetMetadata(key string) (common.JsonValue, bool) {
+func (r *Response) GetMetadata(key string) (common.JsonValue, bool) {
 	return r.metadata.GetMetadata(key)
 }
 
-func (r *TykeResponse) SetResult(status int, reason string) *TykeResponse {
+func (r *Response) SetResult(status int, reason string) *Response {
 	r.metadata.SetStatus(status).SetReason(reason)
 	return r
 }
 
-func (r *TykeResponse) GetResult() (int, string) {
+func (r *Response) GetResult() (int, string) {
 	return r.metadata.GetStatus(), r.metadata.GetReason()
 }
 
-func (r *TykeResponse) SetAsyncUUID(asyncUuid string) *TykeResponse {
+func (r *Response) SetAsyncUUID(asyncUuid string) *Response {
 	r.metadata.AsyncUUID = asyncUuid
 	return r
 }
 
-func (r *TykeResponse) GetAsyncUUID() string {
+func (r *Response) GetAsyncUUID() string {
 	return r.metadata.AsyncUUID
 }
 
-func (r *TykeResponse) SetSendDataHandler(handler SendDataHandler) *TykeResponse {
+func (r *Response) SetSendDataHandler(handler SendDataHandler) *Response {
 	r.sendDataHandler = handler
 	return r
 }
 
-func (r *TykeResponse) SetClientId(clientId ipc.ClientId) *TykeResponse {
+func (r *Response) SetClientId(clientId ipc.ClientId) *Response {
 	r.clientId = clientId
 	return r
 }
 
-func (r *TykeResponse) IsSent() bool {
+func (r *Response) IsSent() bool {
 	return r.isSend.Load()
 }
 
-func (r *TykeResponse) Send() common.BoolResult {
+func (r *Response) Send() common.BoolResult {
 	common.LogDebug("Send", "route", r.GetRoute(), "msg_uuid", r.GetMsgUUID())
 	if !r.isSend.CompareAndSwap(false, true) {
 		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUUID())
@@ -170,7 +170,7 @@ func (r *TykeResponse) Send() common.BoolResult {
 	return common.OkBool(true)
 }
 
-func (r *TykeResponse) SendAsync() common.BoolResult {
+func (r *Response) SendAsync() common.BoolResult {
 	common.LogDebug("SendAsync", "route", r.GetRoute(), "msg_uuid", r.GetMsgUUID(), "asyncUuid", r.metadata.AsyncUUID)
 	if !r.isSend.CompareAndSwap(false, true) {
 		common.LogWarn("Response already sent", "msg_uuid", r.GetMsgUUID())

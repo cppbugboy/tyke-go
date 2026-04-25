@@ -8,34 +8,34 @@ import (
 	"github.com/tyke/tyke/tyke/ipc"
 )
 
-// TykeRequest 表示一个 IPC 请求对象，支持同步和异步发送。
-type TykeRequest struct {
+// Request 表示一个 IPC 请求对象，支持同步和异步发送。
+type Request struct {
 	protocolHeader common.ProtocolHeader
 	metadata       RequestMetadata
 	content        []byte
 }
 
-var requestPool = component.NewObjectPool(func() *TykeRequest {
-	return &TykeRequest{
+var requestPool = component.NewObjectPool(func() *Request {
+	return &Request{
 		protocolHeader: common.ProtocolHeader{Magic: common.ProtocolMagic},
 		metadata:       NewRequestMetadata(),
 	}
 })
 
 func init() {
-	requestPool.SetReset(func(req *TykeRequest) {
+	requestPool.SetReset(func(req *Request) {
 		req.Reset()
 	})
 }
 
-// AcquireRequest 从对象池获取一个 TykeRequest 实例。
-func AcquireRequest() *TykeRequest {
+// AcquireRequest 从对象池获取一个 Request 实例。
+func AcquireRequest() *Request {
 	common.LogDebug("Acquiring request from pool")
 	return requestPool.Acquire()
 }
 
-// ReleaseRequest 将 TykeRequest 实例归还到对象池。
-func ReleaseRequest(req *TykeRequest) {
+// ReleaseRequest 将 Request 实例归还到对象池。
+func ReleaseRequest(req *Request) {
 	if req != nil {
 		common.LogDebug("Releasing request object to pool", "msg_uuid", req.GetMsgUUID())
 		req.Reset()
@@ -43,79 +43,79 @@ func ReleaseRequest(req *TykeRequest) {
 	}
 }
 
-func (r *TykeRequest) Reset() {
+func (r *Request) Reset() {
 	r.protocolHeader = common.ProtocolHeader{Magic: common.ProtocolMagic}
 	r.metadata = NewRequestMetadata()
 	r.content = nil
 }
 
-func (r *TykeRequest) GetMagic() [4]byte {
+func (r *Request) GetMagic() [4]byte {
 	return r.protocolHeader.Magic
 }
 
-func (r *TykeRequest) GetMessageType() common.MessageType {
+func (r *Request) GetMessageType() common.MessageType {
 	return r.protocolHeader.MsgType
 }
 
-func (r *TykeRequest) SetContent(contentType common.ContentType, content []byte) *TykeRequest {
+func (r *Request) SetContent(contentType common.ContentType, content []byte) *Request {
 	r.metadata.SetContentType(common.ContentTypeMap[contentType])
 	r.content = content
 	return r
 }
 
-func (r *TykeRequest) GetContent() (string, []byte) {
+func (r *Request) GetContent() (string, []byte) {
 	return r.metadata.GetContentType(), r.content
 }
 
-func (r *TykeRequest) SetModule(module string) *TykeRequest {
+func (r *Request) SetModule(module string) *Request {
 	r.metadata.SetModule(module)
 	return r
 }
 
-func (r *TykeRequest) GetModule() string {
+func (r *Request) GetModule() string {
 	return r.metadata.GetModule()
 }
 
-func (r *TykeRequest) SetRoute(route string) *TykeRequest {
+func (r *Request) SetRoute(route string) *Request {
 	r.metadata.SetRoute(route)
 	return r
 }
 
-func (r *TykeRequest) GetRoute() string {
+func (r *Request) GetRoute() string {
 	return r.metadata.GetRoute()
 }
 
-func (r *TykeRequest) GetMsgUUID() string {
+func (r *Request) GetMsgUUID() string {
 	return r.metadata.GetMsgUUID()
 }
 
-func (r *TykeRequest) SetAsyncUUID(asyncUuid string) *TykeRequest {
+func (r *Request) SetAsyncUUID(asyncUuid string) *Request {
 	r.metadata.SetAsyncUUID(asyncUuid)
 	return r
 }
 
-func (r *TykeRequest) GetAsyncUUID() string {
+func (r *Request) GetAsyncUUID() string {
 	return r.metadata.GetAsyncUUID()
 }
 
-func (r *TykeRequest) AddMetadata(key string, value common.JsonValue) common.BoolResult {
+func (r *Request) AddMetadata(key string, value common.JsonValue) common.BoolResult {
 	return r.metadata.AddMetadata(key, value)
 }
 
-func (r *TykeRequest) GetMetadata(key string) (common.JsonValue, bool) {
+func (r *Request) GetMetadata(key string) (common.JsonValue, bool) {
 	return r.metadata.GetMetadata(key)
 }
 
-func (r *TykeRequest) SetTimeout(timeout uint64) *TykeRequest {
+func (r *Request) SetTimeout(timeout uint64) *Request {
 	r.metadata.SetTimeout(timeout)
 	return r
 }
 
-func (r *TykeRequest) GetTimeout() uint64 {
+func (r *Request) GetTimeout() uint64 {
 	return r.metadata.GetTimeout()
 }
 
-func (r *TykeRequest) Send(sendUuid string, response *TykeResponse, timeoutMs ...uint32) common.BoolResult {
+func (r *Request) Send(sendUuid string, response *Response, timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
 		tm = timeoutMs[0]
@@ -146,11 +146,11 @@ func (r *TykeRequest) Send(sendUuid string, response *TykeResponse, timeoutMs ..
 	return common.OkBool(true)
 }
 
-func (r *TykeRequest) SendAsync(sendUuid string, timeoutMs ...uint32) common.BoolResult {
+func (r *Request) SendAsync(sendUuid string, timeoutMs ...uint32) common.BoolResult {
 	return r.encodeAndSend(sendUuid, common.MessageTypeRequestAsync, timeoutMs...)
 }
 
-func (r *TykeRequest) SendAsyncWithFunc(sendUuid string, fn func(*TykeResponse), timeoutMs ...uint32) common.BoolResult {
+func (r *Request) SendAsyncWithFunc(sendUuid string, fn func(*Response), timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
 		tm = timeoutMs[0]
@@ -164,7 +164,7 @@ func (r *TykeRequest) SendAsyncWithFunc(sendUuid string, fn func(*TykeResponse),
 	return result
 }
 
-func (r *TykeRequest) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) (ResponseFuture, error) {
+func (r *Request) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) (ResponseFuture, error) {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
 		tm = timeoutMs[0]
@@ -174,14 +174,14 @@ func (r *TykeRequest) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) 
 	if !result.HasValue() {
 		return ResponseFuture{}, fmt.Errorf("%s", result.Err)
 	}
-	ch := make(chan *TykeResponse, 1)
+	ch := make(chan *Response, 1)
 	RequestStubAddFuture(r.metadata.GetMsgUUID(), ch, tm)
 	future := NewResponseFuture(r.metadata.GetMsgUUID(), ch)
 	common.LogDebug("Future registered", "msg_uuid", r.GetMsgUUID())
 	return future, nil
 }
 
-func (r *TykeRequest) encodeAndSend(sendUuid string, msgType common.MessageType, timeoutMs ...uint32) common.BoolResult {
+func (r *Request) encodeAndSend(sendUuid string, msgType common.MessageType, timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
 		tm = timeoutMs[0]

@@ -70,7 +70,7 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 		}
 
 	case common.MessageTypeResponseAsync, common.MessageTypeResponseAsyncFunc, common.MessageTypeResponseAsyncFuture:
-		response := NewTykeResponse()
+		response := AcquireResponse()
 		if DecodeResponse(dataVec, response, &used) {
 			common.LogDebug("Processing async response", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 			ResponseHandler(response)
@@ -92,10 +92,10 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 	return &used
 }
 
-func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler SendDataHandler) {
+func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler SendDataHandler) {
 	common.LogDebug("RequestHandler", "client_id", clientId, "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
-	response := NewTykeResponse()
+	response := AcquireResponse()
 	response.SetClientId(clientId).
 		SetMessageType(common.MessageTypeResponse).
 		SetModule(request.GetModule()).
@@ -141,11 +141,11 @@ func RequestHandler(clientId ipc.ClientId, request *TykeRequest, sendDataHandler
 	ReleaseResponse(response)
 }
 
-func RequestHandlerAsync(request *TykeRequest) {
+func RequestHandlerAsync(request *Request) {
 	defer ReleaseRequest(request)
 	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
-	response := NewTykeResponse()
+	response := AcquireResponse()
 	response.SetAsyncUUID(request.GetAsyncUUID()).
 		SetMessageType(common.MessageTypeResponseAsync).
 		SetModule(request.GetModule()).
@@ -198,7 +198,7 @@ func RequestHandlerAsync(request *TykeRequest) {
 	ReleaseResponse(response)
 }
 
-func ResponseHandler(response *TykeResponse) {
+func ResponseHandler(response *Response) {
 	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID(), "msg_type", int(response.GetMessageType()))
 
 	switch response.GetMessageType() {

@@ -28,7 +28,7 @@ func (f *ResponseFuture) GetResponseWithTimeout(timeoutMs uint32) (*Response, er
 		return resp, nil
 	case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
 		common.LogWarn("GetResponse timeout", "msg_uuid", f.msgUuid, "timeout", timeoutMs)
-		timeoutResp := NewTykeResponse()
+		timeoutResp := AcquireResponse()
 		timeoutResp.SetMsgUUID(f.msgUuid)
 		timeoutResp.SetResult(-1, "timeout")
 		return timeoutResp, nil
