@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/puzpuzpuz/xsync/v3"
 )
 
 const (
@@ -25,7 +24,7 @@ type TaskPriority int
 
 const (
 	PriorityLow    TaskPriority = iota
-	PriorityNormal TaskPriority = iota
+	PriorityMedium TaskPriority = iota
 	PriorityHigh   TaskPriority = iota
 )
 
@@ -50,6 +49,9 @@ type PoolMetrics struct {
 	TotalTasksDropped    uint64
 	TotalTasksTimeout    uint64
 	CurrentQueueSize     int32
+	HighQueueSize        int32
+	MediumQueueSize      int32
+	LowQueueSize         int32
 	CurrentActiveWorkers int32
 	CurrentIdleWorkers   int32
 	PeakQueueSize        int32
@@ -121,11 +123,16 @@ type atomicMetrics struct {
 type CoroutinePool struct {
 	config      CoroutinePoolConfig
 	state       atomic.Int32
-	queue       *xsync.MPMCQueueOf[TaskWrapper]
 	queueSize   atomic.Int32
 	workers     int32
 	activeTasks int32
 	idleWorkers int32
+
+	highQueue   []TaskWrapper
+	mediumQueue []TaskWrapper
+	lowQueue    []TaskWrapper
+	queueMu     sync.Mutex
+	queueCond   *sync.Cond
 
 	wg            sync.WaitGroup
 	stopCh        chan struct{}
@@ -167,15 +174,24 @@ func NewCoroutinePool(config CoroutinePoolConfig) *CoroutinePool {
 	}
 
 	p := &CoroutinePool{
-		config: config,
-		queue:  xsync.NewMPMCQueueOf[TaskWrapper](config.InitialQueue),
-		stopCh: make(chan struct{}),
+		config:      config,
+		highQueue:   make([]TaskWrapper, 0, config.InitialQueue/3),
+		mediumQueue: make([]TaskWrapper, 0, config.InitialQueue/3),
+		lowQueue:    make([]TaskWrapper, 0, config.InitialQueue/3),
+		stopCh:      make(chan struct{}),
 	}
 
-	p.state.Store(int32(StateIdle))
+	p.queueCond = sync.NewCond(&p.queueMu)
 	p.onTaskPanic = defaultPanicHandler
 
-	common.LogInfo("CoroutinePool created", "workers", config.InitialWorkers, "queue", config.InitialQueue)
+	p.startWorkers(config.InitialWorkers)
+	p.state.Store(int32(StateRunning))
+
+	if config.Scaling.EnableAutoScale {
+		p.startScalingLoop()
+	}
+
+	common.LogInfo("CoroutinePool created", "workers", config.InitialWorkers, "queue", config.InitialQueue, "priority_queues", "High/Medium/Low")
 	return p
 }
 
@@ -198,7 +214,10 @@ func (tp *CoroutinePool) InitWithConfig(config CoroutinePoolConfig) {
 	}
 
 	tp.config = config
-	tp.queue = xsync.NewMPMCQueueOf[TaskWrapper](config.InitialQueue)
+	tp.highQueue = make([]TaskWrapper, 0, config.InitialQueue/3)
+	tp.mediumQueue = make([]TaskWrapper, 0, config.InitialQueue/3)
+	tp.lowQueue = make([]TaskWrapper, 0, config.InitialQueue/3)
+	tp.queueCond = sync.NewCond(&tp.queueMu)
 	tp.stopCh = make(chan struct{})
 	tp.workers = 0
 
@@ -209,7 +228,7 @@ func (tp *CoroutinePool) InitWithConfig(config CoroutinePoolConfig) {
 		tp.startScalingLoop()
 	}
 
-	common.LogInfo("CoroutinePool initialized", "workers", config.InitialWorkers, "queue", config.InitialQueue)
+	common.LogInfo("CoroutinePool initialized", "workers", config.InitialWorkers, "queue", config.InitialQueue, "priority_queues", "High/Medium/Low")
 }
 
 func (tp *CoroutinePool) startWorkers(count int) {
@@ -231,18 +250,44 @@ func (tp *CoroutinePool) workerLoop() {
 		default:
 		}
 
-		task, ok := tp.queue.TryDequeue()
-		if !ok {
-			atomic.AddInt32(&tp.idleWorkers, 1)
+		tp.queueMu.Lock()
+		for tp.highQueue == nil && tp.mediumQueue == nil && tp.lowQueue == nil {
+			tp.queueMu.Unlock()
+			return
+		}
+
+		for len(tp.highQueue) == 0 && len(tp.mediumQueue) == 0 && len(tp.lowQueue) == 0 {
 			select {
 			case <-tp.stopCh:
-				atomic.AddInt32(&tp.idleWorkers, -1)
+				tp.queueMu.Unlock()
 				return
-			case <-time.After(10 * time.Millisecond):
-				atomic.AddInt32(&tp.idleWorkers, -1)
-				continue
+			default:
+			}
+
+			atomic.AddInt32(&tp.idleWorkers, 1)
+			tp.queueCond.Wait()
+			atomic.AddInt32(&tp.idleWorkers, -1)
+
+			select {
+			case <-tp.stopCh:
+				tp.queueMu.Unlock()
+				return
+			default:
 			}
 		}
+
+		var task TaskWrapper
+		if len(tp.highQueue) > 0 {
+			task = tp.highQueue[0]
+			tp.highQueue = tp.highQueue[1:]
+		} else if len(tp.mediumQueue) > 0 {
+			task = tp.mediumQueue[0]
+			tp.mediumQueue = tp.mediumQueue[1:]
+		} else if len(tp.lowQueue) > 0 {
+			task = tp.lowQueue[0]
+			tp.lowQueue = tp.lowQueue[1:]
+		}
+		tp.queueMu.Unlock()
 
 		tp.queueSize.Add(-1)
 		tp.executeTask(&task)
@@ -271,7 +316,7 @@ func (tp *CoroutinePool) executeTask(task *TaskWrapper) {
 }
 
 func (tp *CoroutinePool) Enqueue(f func()) bool {
-	return tp.EnqueueWithPriority(f, PriorityNormal)
+	return tp.EnqueueWithPriority(f, PriorityMedium)
 }
 
 func (tp *CoroutinePool) EnqueueWithPriority(f func(), priority TaskPriority) bool {
@@ -286,17 +331,37 @@ func (tp *CoroutinePool) EnqueueWithPriority(f func(), priority TaskPriority) bo
 		enqTime:  time.Now(),
 	}
 
-	if !tp.queue.TryEnqueue(task) {
+	tp.queueMu.Lock()
+	totalSize := len(tp.highQueue) + len(tp.mediumQueue) + len(tp.lowQueue)
+	if totalSize >= tp.config.InitialQueue {
+		tp.queueMu.Unlock()
 		tp.recordQueueFull()
 		return false
 	}
 
+	switch priority {
+	case PriorityHigh:
+		tp.highQueue = append(tp.highQueue, task)
+	case PriorityMedium:
+		tp.mediumQueue = append(tp.mediumQueue, task)
+	case PriorityLow:
+		tp.lowQueue = append(tp.lowQueue, task)
+	default:
+		tp.mediumQueue = append(tp.mediumQueue, task)
+	}
+	tp.queueMu.Unlock()
+
+	tp.queueCond.Signal()
 	tp.queueSize.Add(1)
 	tp.recordTaskSubmitted()
 	return true
 }
 
 func (tp *CoroutinePool) EnqueueWithContext(ctx context.Context, f func()) error {
+	return tp.EnqueueWithContextAndPriority(ctx, f, PriorityMedium)
+}
+
+func (tp *CoroutinePool) EnqueueWithContextAndPriority(ctx context.Context, f func(), priority TaskPriority) error {
 	if tp.state.Load() != int32(StateRunning) {
 		tp.recordTaskDropped()
 		return fmt.Errorf("pool is not running")
@@ -304,22 +369,40 @@ func (tp *CoroutinePool) EnqueueWithContext(ctx context.Context, f func()) error
 
 	task := TaskWrapper{
 		fn:       f,
-		priority: PriorityNormal,
+		priority: priority,
 		enqTime:  time.Now(),
 	}
 
-	select {
-	case <-ctx.Done():
-		tp.recordTaskTimeout()
-		return ctx.Err()
-	default:
+	if ctx != nil {
+		select {
+		case <-ctx.Done():
+			tp.recordTaskTimeout()
+			return ctx.Err()
+		default:
+		}
 	}
 
-	if !tp.queue.TryEnqueue(task) {
+	tp.queueMu.Lock()
+	totalSize := len(tp.highQueue) + len(tp.mediumQueue) + len(tp.lowQueue)
+	if totalSize >= tp.config.InitialQueue {
+		tp.queueMu.Unlock()
 		tp.recordQueueFull()
 		return fmt.Errorf("queue is full")
 	}
 
+	switch priority {
+	case PriorityHigh:
+		tp.highQueue = append(tp.highQueue, task)
+	case PriorityMedium:
+		tp.mediumQueue = append(tp.mediumQueue, task)
+	case PriorityLow:
+		tp.lowQueue = append(tp.lowQueue, task)
+	default:
+		tp.mediumQueue = append(tp.mediumQueue, task)
+	}
+	tp.queueMu.Unlock()
+
+	tp.queueCond.Signal()
 	tp.queueSize.Add(1)
 	tp.recordTaskSubmitted()
 	return nil
@@ -332,6 +415,10 @@ func (tp *CoroutinePool) EnqueueWithTimeout(f func(), timeout time.Duration) boo
 }
 
 func (tp *CoroutinePool) EnqueueOrExecute(f func()) bool {
+	return tp.EnqueueOrExecuteWithPriority(f, PriorityMedium)
+}
+
+func (tp *CoroutinePool) EnqueueOrExecuteWithPriority(f func(), priority TaskPriority) bool {
 	if tp.state.Load() != int32(StateRunning) {
 		f()
 		return false
@@ -339,15 +426,31 @@ func (tp *CoroutinePool) EnqueueOrExecute(f func()) bool {
 
 	task := TaskWrapper{
 		fn:       f,
-		priority: PriorityNormal,
+		priority: priority,
 		enqTime:  time.Now(),
 	}
 
-	if !tp.queue.TryEnqueue(task) {
+	tp.queueMu.Lock()
+	totalSize := len(tp.highQueue) + len(tp.mediumQueue) + len(tp.lowQueue)
+	if totalSize >= tp.config.InitialQueue {
+		tp.queueMu.Unlock()
 		tp.executeTaskInline(f)
 		return false
 	}
 
+	switch priority {
+	case PriorityHigh:
+		tp.highQueue = append(tp.highQueue, task)
+	case PriorityMedium:
+		tp.mediumQueue = append(tp.mediumQueue, task)
+	case PriorityLow:
+		tp.lowQueue = append(tp.lowQueue, task)
+	default:
+		tp.mediumQueue = append(tp.mediumQueue, task)
+	}
+	tp.queueMu.Unlock()
+
+	tp.queueCond.Signal()
 	tp.queueSize.Add(1)
 	tp.recordTaskSubmitted()
 	return true
@@ -435,6 +538,10 @@ func (tp *CoroutinePool) Stop(waitForTasks bool) {
 
 	close(tp.stopCh)
 
+	tp.queueMu.Lock()
+	tp.queueCond.Broadcast()
+	tp.queueMu.Unlock()
+
 	if waitForTasks {
 		for tp.queueSize.Load() > 0 {
 			time.Sleep(10 * time.Millisecond)
@@ -442,6 +549,13 @@ func (tp *CoroutinePool) Stop(waitForTasks bool) {
 	}
 
 	tp.wg.Wait()
+
+	tp.queueMu.Lock()
+	tp.highQueue = nil
+	tp.mediumQueue = nil
+	tp.lowQueue = nil
+	tp.queueMu.Unlock()
+
 	tp.state.Store(int32(StateStopped))
 
 	common.LogInfo("CoroutinePool stopped", "metrics", tp.GetMetrics())
@@ -462,11 +576,34 @@ func (tp *CoroutinePool) GetMetrics() PoolMetrics {
 	m.CurrentQueueSize = tp.queueSize.Load()
 	m.CurrentActiveWorkers = atomic.LoadInt32(&tp.activeTasks)
 	m.CurrentIdleWorkers = atomic.LoadInt32(&tp.idleWorkers)
+
+	tp.queueMu.Lock()
+	m.HighQueueSize = int32(len(tp.highQueue))
+	m.MediumQueueSize = int32(len(tp.mediumQueue))
+	m.LowQueueSize = int32(len(tp.lowQueue))
+	tp.queueMu.Unlock()
+
 	return m
 }
 
 func (tp *CoroutinePool) GetQueueSize() int {
 	return int(tp.queueSize.Load())
+}
+
+func (tp *CoroutinePool) GetQueueSizeByPriority(priority TaskPriority) int {
+	tp.queueMu.Lock()
+	defer tp.queueMu.Unlock()
+
+	switch priority {
+	case PriorityHigh:
+		return len(tp.highQueue)
+	case PriorityMedium:
+		return len(tp.mediumQueue)
+	case PriorityLow:
+		return len(tp.lowQueue)
+	default:
+		return len(tp.mediumQueue)
+	}
 }
 
 func (tp *CoroutinePool) GetWorkerCount() int {
@@ -483,6 +620,17 @@ func (tp *CoroutinePool) IsRunning() bool {
 
 func (tp *CoroutinePool) SetPanicHandler(handler func(interface{})) {
 	tp.onTaskPanic = handler
+}
+
+func GetTaskPriorityByName(name string) TaskPriority {
+	switch name {
+	case "high", "High", "HIGH":
+		return PriorityHigh
+	case "low", "Low", "LOW":
+		return PriorityLow
+	default:
+		return PriorityMedium
+	}
 }
 
 func (tp *CoroutinePool) recordTaskSubmitted() {
