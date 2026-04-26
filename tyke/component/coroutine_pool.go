@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 )
 
-type ThreadPool struct {
+type CoroutinePool struct {
 	workers  int
 	tasks    chan func()
 	wg       sync.WaitGroup
@@ -15,18 +15,18 @@ type ThreadPool struct {
 }
 
 var (
-	threadPoolInstance *ThreadPool
+	threadPoolInstance *CoroutinePool
 	threadPoolOnce     sync.Once
 )
 
-func GetThreadPoolInstance() *ThreadPool {
+func GetThreadPoolInstance() *CoroutinePool {
 	threadPoolOnce.Do(func() {
-		threadPoolInstance = &ThreadPool{}
+		threadPoolInstance = &CoroutinePool{}
 	})
 	return threadPoolInstance
 }
 
-func (tp *ThreadPool) Init(threads int) {
+func (tp *CoroutinePool) Init(threads int) {
 	tp.mu.Lock()
 	defer tp.mu.Unlock()
 	if tp.started {
@@ -48,7 +48,7 @@ func (tp *ThreadPool) Init(threads int) {
 	}
 }
 
-func (tp *ThreadPool) Stop(waitForTasks bool) {
+func (tp *CoroutinePool) Stop(waitForTasks bool) {
 	tp.mu.Lock()
 	if !tp.started || tp.stopFlag.Swap(true) {
 		tp.mu.Unlock()
@@ -69,7 +69,7 @@ func (tp *ThreadPool) Stop(waitForTasks bool) {
 	tp.wg.Wait()
 }
 
-func (tp *ThreadPool) Enqueue(f func()) bool {
+func (tp *CoroutinePool) Enqueue(f func()) bool {
 	if tp.stopFlag.Load() {
 		return false
 	}

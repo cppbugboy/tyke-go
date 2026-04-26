@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/tyke/tyke/tyke/common"
+	"github.com/cppbugboy/tyke-go/tyke/common"
 )
 
 func EncodeRequest(request *Request) ([]byte, error) {

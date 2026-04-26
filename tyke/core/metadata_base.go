@@ -3,7 +3,7 @@ package core
 import (
 	"encoding/json"
 
-	"github.com/tyke/tyke/tyke/common"
+	"github.com/cppbugboy/tyke-go/tyke/common"
 )
 
 // MetadataBase 提供请求/响应元数据的公共字段和方法。

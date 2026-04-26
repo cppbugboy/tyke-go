@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/tyke/tyke/tyke/common"
+	"github.com/cppbugboy/tyke-go/tyke/common"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

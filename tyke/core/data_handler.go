@@ -4,9 +4,9 @@ import (
 	"encoding/binary"
 	"time"
 
-	"github.com/tyke/tyke/tyke/common"
-	"github.com/tyke/tyke/tyke/component"
-	"github.com/tyke/tyke/tyke/ipc"
+	"github.com/cppbugboy/tyke-go/tyke/common"
+	"github.com/cppbugboy/tyke-go/tyke/component"
+	"github.com/cppbugboy/tyke-go/tyke/ipc"
 )
 
 func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDataHandler) *uint32 {

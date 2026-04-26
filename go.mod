@@ -1,4 +1,4 @@
-module github.com/tyke/tyke
+module github.com/cppbugboy/tyke-go
 
 go 1.24.13
 

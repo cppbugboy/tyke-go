@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tyke/tyke/tyke/core"
+	"github.com/cppbugboy/tyke-go/tyke/core"
 )
 
 type ExampleResponseController struct{}

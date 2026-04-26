@@ -4,9 +4,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/tyke/tyke/tyke/common"
-	"github.com/tyke/tyke/tyke/component"
-	"github.com/tyke/tyke/tyke/ipc"
+	"github.com/cppbugboy/tyke-go/tyke/common"
+	"github.com/cppbugboy/tyke-go/tyke/component"
+	"github.com/cppbugboy/tyke-go/tyke/ipc"
 )
 
 // Framework 是框架的主入口，管理生命周期和配置。
