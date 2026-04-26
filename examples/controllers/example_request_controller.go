@@ -95,14 +95,14 @@ func (c *ExampleRequestController) HandleUserLogin(request *core.Request, respon
 	var requestData map[string]interface{}
 	json.Unmarshal(content, &requestData)
 
-	username := requestData["username"].(string)
-	password := requestData["password"].(string)
+	username, _ := requestData["username"].(string)
+	password, _ := requestData["password"].(string)
 
 	if username == "test_user" && password == "test_password" {
 		responseData := map[string]interface{}{
 			"success":    true,
 			"user_id":    "user_12345",
-			"token":      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+			"token":      "<GENERATED_TOKEN_PLACEHOLDER>",
 			"expires_in": 3600,
 		}
 

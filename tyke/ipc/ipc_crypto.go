@@ -52,9 +52,13 @@ func ExtractFrame(buffer *[]byte) (byte, []byte, error) {
 		return 0, nil, fmt.Errorf("buffer too small for frame header")
 	}
 	totalLen := decodeU32(*buffer)
-	if totalLen > MaxFramePayloadLen {
+	if totalLen < 5 {
 		*buffer = nil
-		return 0, nil, fmt.Errorf("frame payload too large: %d > %d", totalLen, MaxFramePayloadLen)
+		return 0, nil, fmt.Errorf("invalid frame: total_len too small: %d < 5", totalLen)
+	}
+	if totalLen > MaxFramePayloadLen+1 {
+		*buffer = nil
+		return 0, nil, fmt.Errorf("frame payload too large: %d > %d", totalLen, MaxFramePayloadLen+1)
 	}
 	if uint32(len(*buffer)) < 4+totalLen {
 		return 0, nil, fmt.Errorf("buffer incomplete: expected %d bytes, got %d", 4+totalLen, len(*buffer))
@@ -110,6 +114,10 @@ func (e *ECDHKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecR
 	var ecdhPub *ecdh.PublicKey
 	switch k := pub.(type) {
 	case *ecdsa.PublicKey:
+		if k.Curve.Params().Name != "P-256" {
+			common.LogError("Peer ECDSA key is not P-256 curve", "curve", k.Curve.Params().Name)
+			return common.ErrByteVec("peer ECDSA key is not P-256 curve: " + k.Curve.Params().Name)
+		}
 		ecdhPub, err = k.ECDH()
 		if err != nil {
 			common.LogError("Failed to convert ECDSA public key to ECDH", "error", err)
@@ -252,6 +260,10 @@ func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
 		return common.ErrByteVec("IV prefix generation failed")
 	}
 	counter := c.ivCounter.Add(1)
+	if counter == 0 {
+		common.LogError("AES-GCM IV counter overflow: key must be rotated")
+		return common.ErrByteVec("IV counter overflow: key must be rotated")
+	}
 	binary.BigEndian.PutUint64(iv[4:], counter)
 
 	ciphertext := c.aesGcm.Seal(nil, iv, plaintext, nil)

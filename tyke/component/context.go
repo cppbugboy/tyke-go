@@ -247,8 +247,14 @@ func (c *CancelContext) Cancel(err ContextError) {
 	c.state.mu.Unlock()
 
 	for _, cb := range cbs {
-		fn := cb
-		go fn()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					common.LogError("Cancel callback panic recovered", "error", r)
+				}
+			}()
+			cb()
+		}()
 	}
 }
 
