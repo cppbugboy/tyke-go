@@ -401,7 +401,7 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 				}
 				dataCopy := decryptResult.Value
 				callback := s.callback
-				tp := component.GetThreadPoolInstance()
+				tp := component.GetCoroutinePoolInstance()
 				tp.Enqueue(func() {
 					cbSend := func(id ClientId, buf []byte) bool {
 						result := s.SendToClient(id, buf)
@@ -436,7 +436,7 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 					dataCopy := ctx.reassembly.Buffer
 					ctx.reassembly = FragmentReassembly{}
 					callback := s.callback
-					tp := component.GetThreadPoolInstance()
+					tp := component.GetCoroutinePoolInstance()
 					tp.Enqueue(func() {
 						cbSend := func(id ClientId, buf []byte) bool {
 							result := s.SendToClient(id, buf)

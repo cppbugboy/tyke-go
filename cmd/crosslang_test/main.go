@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	component.GetThreadPoolInstance().Init(4)
+	component.GetCoroutinePoolInstance().Init(4)
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: crosslang_test <mode> [server_name]")

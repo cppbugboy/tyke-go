@@ -79,7 +79,7 @@ func (f *Framework) Start(listenUuid string) common.BoolResult {
 		threadPoolCount = 4
 	}
 
-	tp := component.GetThreadPoolInstance()
+	tp := component.GetCoroutinePoolInstance()
 	tp.Init(int(threadPoolCount))
 	common.LogDebug("Thread pool initialized", "threads", threadPoolCount)
 
@@ -136,6 +136,6 @@ func (f *Framework) Shutdown() {
 	}
 
 	component.GetTimingWheel().Stop()
-	component.GetThreadPoolInstance().Stop(true)
+	component.GetCoroutinePoolInstance().Stop(true)
 	GetTykeLogInstance().Stop()
 }

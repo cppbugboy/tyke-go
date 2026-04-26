@@ -48,7 +48,7 @@ import (
 
 func main() {
     // 初始化线程池
-    component.GetThreadPoolInstance().Init(4)
+    component.GetCoroutinePoolInstance().Init(4)
     
     server := ipc.NewIPCServer()
     
@@ -114,7 +114,7 @@ import (
 )
 
 func main() {
-    component.GetThreadPoolInstance().Init(4)
+    component.GetCoroutinePoolInstance().Init(4)
     
     request := []byte{0x01, 0x02}
     
@@ -217,7 +217,7 @@ Tyke Go �?Tyke C++ 使用相同的协议，可以互相通信�?
 
 ### Q: 连接超时怎么办？
 
-A: 检查服务端是否已启动，服务名称是否一致。确保已初始化线程池 `component.GetThreadPoolInstance().Init(4)`�?
+A: 检查服务端是否已启动，服务名称是否一致。确保已初始化线程池 `component.GetCoroutinePoolInstance().Init(4)`�?
 ### Q: 大消息发送失败？
 
 A: Tyke 支持 64KB 分片，最大消�?16MB。超过此限制需要应用层自行分片�?

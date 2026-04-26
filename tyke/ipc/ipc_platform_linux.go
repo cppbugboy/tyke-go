@@ -3,7 +3,6 @@
 package ipc
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -316,8 +315,8 @@ func (s *serverImplLinux) processFrames(cid ClientId, ctx *clientContextLinux) b
 				}
 				dataCopy := decryptResult.Value
 				callback := s.callback
-				tp := component.GetThreadPoolInstance()
-				tp.Enqueue(func() {
+				tp := component.GetCoroutinePoolInstance()
+				cp.Enqueue(func() {
 					cbSend := func(id ClientId, buf []byte) bool {
 						result := s.SendToClient(id, buf)
 						return result.HasValue()
@@ -348,8 +347,8 @@ func (s *serverImplLinux) processFrames(cid ClientId, ctx *clientContextLinux) b
 					dataCopy := ctx.reassembly.Buffer
 					ctx.reassembly = FragmentReassembly{}
 					callback := s.callback
-					tp := component.GetThreadPoolInstance()
-					tp.Enqueue(func() {
+					tp := component.GetCoroutinePoolInstance()
+					cp.Enqueue(func() {
 						cbSend := func(id ClientId, buf []byte) bool {
 							result := s.SendToClient(id, buf)
 							return result.HasValue()
