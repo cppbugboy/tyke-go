@@ -15,11 +15,11 @@ func Err[T any](err string) Result[T] {
 }
 
 func (r Result[T]) HasValue() bool {
-	return r.ok && r.Err == ""
+	return r.ok
 }
 
 func (r Result[T]) HasError() bool {
-	return r.Err != ""
+	return !r.ok
 }
 
 // BoolResult 表示布尔类型的操作结果，包含成功值或错误信息。

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cppbugboy/tyke-go/tyke/common"
@@ -26,7 +27,8 @@ func newClientConnectionImplLinux() ClientConnection {
 func (c *clientConnectionImplLinux) Connect(serverName string, timeoutMs uint32) common.BoolResult {
 	common.LogInfo("IPC client connecting", "server_name", serverName)
 	addr := &net.UnixAddr{Name: "\x00tyke_" + serverName, Net: "unix"}
-	conn, err := net.DialTimeout("unix", addr.String(), time.Duration(timeoutMs)*time.Millisecond)
+	dialer := net.Dialer{Timeout: time.Duration(timeoutMs) * time.Millisecond}
+	conn, err := dialer.Dial("unix", addr.Name)
 	if err != nil {
 		return common.ErrBool("connect failed: " + err.Error())
 	}
@@ -111,11 +113,12 @@ func (c *clientConnectionImplLinux) ReadLoop(callback ClientRecvDataCallback, ti
 				if offset == 0 {
 					c.reassembly.Reset(totalSize)
 				}
-				if int(offset)+len(decryptResult.Value) > int(c.reassembly.Total) {
-					return common.ErrBool("fragment offset overflow")
+				if !c.reassembly.ValidateOffset(offset, len(decryptResult.Value)) {
+					return common.ErrBool("fragment offset out of order or overflow")
 				}
 				copy(c.reassembly.Buffer[offset:], decryptResult.Value)
 				c.reassembly.Received += uint32(len(decryptResult.Value))
+				c.reassembly.NextOffset = offset + uint32(len(decryptResult.Value))
 				if c.reassembly.IsComplete() {
 					plainBuf = append(plainBuf, c.reassembly.Buffer...)
 					c.reassembly = FragmentReassembly{}
@@ -237,7 +240,7 @@ func (s *serverImplLinux) Start(serverName string, callback ServerRecvDataCallba
 }
 
 func (s *serverImplLinux) acceptLoop() {
-	var clientIdCounter ClientId = 1
+	var clientIdCounter atomic.Uint64
 	for s.running {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -252,8 +255,7 @@ func (s *serverImplLinux) acceptLoop() {
 			ecdh:   NewECDHKeyExchange(),
 			cipher: NewAESGCMCipher(),
 		}
-		cid := clientIdCounter
-		clientIdCounter++
+		cid := ClientId(clientIdCounter.Add(1))
 		s.mu.Lock()
 		s.clients[cid] = ctx
 		s.mu.Unlock()
@@ -336,11 +338,12 @@ func (s *serverImplLinux) processFrames(cid ClientId, ctx *clientContextLinux) b
 				if offset == 0 {
 					ctx.reassembly.Reset(totalSize)
 				}
-				if int(offset)+len(decryptResult.Value) > int(ctx.reassembly.Total) {
+				if !ctx.reassembly.ValidateOffset(offset, len(decryptResult.Value)) {
 					return false
 				}
 				copy(ctx.reassembly.Buffer[offset:], decryptResult.Value)
 				ctx.reassembly.Received += uint32(len(decryptResult.Value))
+				ctx.reassembly.NextOffset = offset + uint32(len(decryptResult.Value))
 				if ctx.reassembly.IsComplete() {
 					dataCopy := ctx.reassembly.Buffer
 					ctx.reassembly = FragmentReassembly{}

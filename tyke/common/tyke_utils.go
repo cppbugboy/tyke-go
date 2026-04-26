@@ -12,7 +12,10 @@ var uuidRegex = regexp.MustCompile(`^{?[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-
 
 func GenerateUUID() string {
 	b := make([]byte, 16)
-	_, _ = rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		LogError("crypto/rand.Read failed", "error", err)
+		return fmt.Sprintf("fallback-%d", time.Now().UnixNano())
+	}
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	uuid := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",

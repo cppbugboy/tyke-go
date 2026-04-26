@@ -109,7 +109,8 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 		timeoutMs = uint64(common.DefaultTimeoutMs)
 	}
 
-	ctx, _ := component.ContextWithTimeout(component.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	ctx, cancel := component.ContextWithTimeout(component.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
 	timerCtx, ok := ctx.(*component.TimerContext)
 	if !ok {
 		common.LogError("Failed to cast context to TimerContext")
@@ -166,7 +167,8 @@ func RequestHandlerAsync(request *Request) {
 		timeoutMs = uint64(common.DefaultTimeoutMs)
 	}
 
-	ctx, _ := component.ContextWithTimeout(component.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	ctx, cancel := component.ContextWithTimeout(component.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
 	timerCtx, ok := ctx.(*component.TimerContext)
 	if !ok {
 		common.LogError("Failed to cast context to TimerContext")

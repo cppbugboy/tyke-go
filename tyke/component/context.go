@@ -25,12 +25,13 @@ type Context interface {
 	IsDone() bool
 	Err() ContextError
 	Wait()
-	Value(key interface{}) interface{}
+	Value(key any) any
 	Reset()
 }
 
 type cancelState struct {
 	mu         sync.Mutex
+	cond       *sync.Cond
 	atomicDone atomic.Bool
 	err        ContextError
 	nextToken  atomic.Uint64
@@ -38,9 +39,11 @@ type cancelState struct {
 }
 
 func newCancelState() *cancelState {
-	return &cancelState{
+	s := &cancelState{
 		callbacks: make(map[CancelToken]func()),
 	}
+	s.cond = sync.NewCond(&s.mu)
+	return s
 }
 
 func (s *cancelState) Reset() {
@@ -79,7 +82,7 @@ func (e *EmptyContext) Err() ContextError {
 func (e *EmptyContext) Wait() {
 }
 
-func (e *EmptyContext) Value(key interface{}) interface{} {
+func (e *EmptyContext) Value(key any) any {
 	return nil
 }
 
@@ -131,14 +134,12 @@ func (c *CancelContext) Wait() {
 	}
 	c.state.mu.Lock()
 	for !c.state.atomicDone.Load() {
-		c.state.mu.Unlock()
-		time.Sleep(1 * time.Millisecond)
-		c.state.mu.Lock()
+		c.state.cond.Wait()
 	}
 	c.state.mu.Unlock()
 }
 
-func (c *CancelContext) Value(key interface{}) interface{} {
+func (c *CancelContext) Value(key any) any {
 	if c.parent != nil {
 		return c.parent.Value(key)
 	}
@@ -154,6 +155,7 @@ func (c *CancelContext) Cancel(err ContextError) {
 	}
 	c.state.err = err
 	c.state.atomicDone.Store(true)
+	c.state.cond.Broadcast()
 	for token, cb := range c.state.callbacks {
 		if cb != nil {
 			cbs = append(cbs, cb)
@@ -252,15 +254,15 @@ func (t *TimerContext) Deadline() (time.Time, bool) {
 
 type ValueContext struct {
 	parent Context
-	key    interface{}
-	value  interface{}
+	key    any
+	value  any
 }
 
 var valuePool = NewObjectPool(func() *ValueContext {
 	return &ValueContext{}
 })
 
-func (v *ValueContext) Set(parent Context, key interface{}, val interface{}) {
+func (v *ValueContext) Set(parent Context, key any, val any) {
 	v.parent = parent
 	v.key = key
 	v.value = val
@@ -299,7 +301,7 @@ func (v *ValueContext) Wait() {
 	}
 }
 
-func (v *ValueContext) Value(key interface{}) interface{} {
+func (v *ValueContext) Value(key any) any {
 	if key == v.key {
 		return v.value
 	}
@@ -376,7 +378,7 @@ func ContextWithTimeout(parent Context, timeout time.Duration) (Context, func())
 	return ContextWithDeadline(parent, deadline)
 }
 
-func ContextWithValue(parent Context, key interface{}, val interface{}) Context {
+func ContextWithValue(parent Context, key any, val any) Context {
 	raw := AcquireValueContext()
 	raw.Set(parent, key, val)
 	return raw

@@ -7,4 +7,7 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
-require golang.org/x/sys v0.10.0 // indirect
+require (
+	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
+	golang.org/x/sys v0.10.0 // indirect
+)

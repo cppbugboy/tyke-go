@@ -12,6 +12,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"hash"
+	"runtime"
+	"sync"
 	"sync/atomic"
 
 	"github.com/cppbugboy/tyke-go/tyke/common"
@@ -129,6 +131,7 @@ func (e *ECDHKeyExchange) ComputeSharedSecret(peerPubDer []byte) common.ByteVecR
 }
 
 type AESGCMCipher struct {
+	mu          sync.RWMutex
 	aesKey      []byte
 	aesGcm      cipher.AEAD
 	initialized atomic.Bool
@@ -196,9 +199,7 @@ func (c *AESGCMCipher) Init(sharedSecret []byte) common.BoolResult {
 		return common.ErrBool("HKDF derive key failed")
 	}
 
-	c.aesKey = key
-
-	block, blockErr := aes.NewCipher(c.aesKey)
+	block, blockErr := aes.NewCipher(key)
 	if blockErr != nil {
 		common.LogError("AES cipher creation failed", "error", blockErr)
 		return common.ErrBool("AES cipher creation failed")
@@ -208,9 +209,13 @@ func (c *AESGCMCipher) Init(sharedSecret []byte) common.BoolResult {
 		common.LogError("GCM creation failed", "error", gcmErr)
 		return common.ErrBool("GCM creation failed")
 	}
-	c.aesGcm = gcm
 
+	c.mu.Lock()
+	c.aesKey = key
+	c.aesGcm = gcm
 	c.initialized.Store(true)
+	c.mu.Unlock()
+
 	common.LogDebug("AES-GCM cipher initialized with HKDF")
 	return common.OkBool(true)
 }
@@ -220,10 +225,13 @@ func (c *AESGCMCipher) IsInitialized() bool {
 }
 
 func (c *AESGCMCipher) ClearKey() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.aesKey != nil {
 		for i := range c.aesKey {
 			c.aesKey[i] = 0
 		}
+		runtime.KeepAlive(c.aesKey)
 		c.aesKey = nil
 	}
 	c.aesGcm = nil
@@ -231,6 +239,9 @@ func (c *AESGCMCipher) ClearKey() {
 }
 
 func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	if !c.initialized.Load() || c.aesGcm == nil {
 		return common.ErrByteVec("cipher not initialized")
 	}
@@ -251,6 +262,9 @@ func (c *AESGCMCipher) Encrypt(plaintext []byte) common.ByteVecResult {
 }
 
 func (c *AESGCMCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	if !c.initialized.Load() || c.aesGcm == nil {
 		return common.ErrByteVec("cipher not initialized")
 	}
@@ -270,19 +284,31 @@ func (c *AESGCMCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
 }
 
 type FragmentReassembly struct {
-	Buffer   []byte
-	Total    uint32
-	Received uint32
+	Buffer     []byte
+	Total      uint32
+	Received   uint32
+	NextOffset uint32
 }
 
 func (r *FragmentReassembly) Reset(totalSize uint32) {
 	r.Buffer = make([]byte, totalSize)
 	r.Total = totalSize
 	r.Received = 0
+	r.NextOffset = 0
 }
 
 func (r *FragmentReassembly) IsComplete() bool {
 	return r.Received == r.Total && r.Total > 0
+}
+
+func (r *FragmentReassembly) ValidateOffset(offset uint32, chunkLen int) bool {
+	if offset != r.NextOffset {
+		return false
+	}
+	if int(offset)+chunkLen > int(r.Total) {
+		return false
+	}
+	return true
 }
 
 func BuildFragmentPayload(totalSize uint32, offset uint32, encryptedChunk []byte) []byte {

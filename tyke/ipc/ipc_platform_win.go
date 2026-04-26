@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -157,11 +158,12 @@ func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, time
 				if offset == 0 {
 					c.reassembly.Reset(totalSize)
 				}
-				if int(offset)+len(decryptResult.Value) > int(c.reassembly.Total) {
-					return common.ErrBool("fragment offset overflow")
+				if !c.reassembly.ValidateOffset(offset, len(decryptResult.Value)) {
+					return common.ErrBool("fragment offset out of order or overflow")
 				}
 				copy(c.reassembly.Buffer[offset:], decryptResult.Value)
 				c.reassembly.Received += uint32(len(decryptResult.Value))
+				c.reassembly.NextOffset = offset + uint32(len(decryptResult.Value))
 				if c.reassembly.IsComplete() {
 					plainBuf = append(plainBuf, c.reassembly.Buffer...)
 					c.reassembly = FragmentReassembly{}
@@ -295,7 +297,7 @@ func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback
 }
 
 func (s *serverImplWin) acceptLoop() {
-	var clientIdCounter ClientId = 1
+	var clientIdCounter atomic.Uint64
 	for s.running {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -310,8 +312,7 @@ func (s *serverImplWin) acceptLoop() {
 			ecdh:   NewECDHKeyExchange(),
 			cipher: NewAESGCMCipher(),
 		}
-		cid := clientIdCounter
-		clientIdCounter++
+		cid := ClientId(clientIdCounter.Add(1))
 		s.mu.Lock()
 		s.clients[cid] = ctx
 		s.mu.Unlock()
@@ -424,12 +425,13 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 				if offset == 0 {
 					ctx.reassembly.Reset(totalSize)
 				}
-				if int(offset)+len(decryptResult.Value) > int(ctx.reassembly.Total) {
-					common.LogError("Server fragment overflow", "offset", offset, "chunk_size", len(decryptResult.Value), "total", ctx.reassembly.Total)
+				if !ctx.reassembly.ValidateOffset(offset, len(decryptResult.Value)) {
+					common.LogError("Server fragment offset out of order or overflow", "offset", offset, "chunk_size", len(decryptResult.Value), "total", ctx.reassembly.Total)
 					return false
 				}
 				copy(ctx.reassembly.Buffer[offset:], decryptResult.Value)
 				ctx.reassembly.Received += uint32(len(decryptResult.Value))
+				ctx.reassembly.NextOffset = offset + uint32(len(decryptResult.Value))
 				if ctx.reassembly.IsComplete() {
 					dataCopy := ctx.reassembly.Buffer
 					ctx.reassembly = FragmentReassembly{}

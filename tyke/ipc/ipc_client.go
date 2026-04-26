@@ -116,7 +116,7 @@ func IPCClientSendAsync(serverName string, request []byte, timeoutMs ...uint32) 
 		return common.ErrBool("send async: write encrypted failed")
 	}
 
-	pool.Release(conn, false)
+	pool.Release(conn, true)
 
 	common.LogDebug("IPC client sending dataAsync completed successfully")
 	return common.OkBool(true)
