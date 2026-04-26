@@ -83,16 +83,19 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 	}
 
 	canCreate := int(atomic.LoadInt32(&p.active)) < p.config.MaxConnections
+	if canCreate {
+		atomic.AddInt32(&p.active, 1)
+	}
 	p.mu.Unlock()
 
 	if canCreate {
 		conn := p.createConnection()
 		if conn != nil {
-			atomic.AddInt32(&p.active, 1)
 			common.LogDebug("Created new connection in pool", "server", p.serverUuid,
 				"idle", len(p.idle), "active", atomic.LoadInt32(&p.active))
 			return conn, nil
 		}
+		atomic.AddInt32(&p.active, -1)
 		return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
 	}
 
@@ -131,12 +134,13 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 		}
 
 		if int(atomic.LoadInt32(&p.active)) < p.config.MaxConnections {
+			atomic.AddInt32(&p.active, 1)
 			p.mu.Unlock()
 			conn := p.createConnection()
 			if conn != nil {
-				atomic.AddInt32(&p.active, 1)
 				return conn, nil
 			}
+			atomic.AddInt32(&p.active, -1)
 			return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
 		}
 

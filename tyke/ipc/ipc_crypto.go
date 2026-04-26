@@ -21,8 +21,11 @@ const (
 	MsgHandshakeInit byte = 0x01
 	MsgHandshakeResp byte = 0x02
 	MsgData          byte = 0x03
+	MsgDataFragment  byte = 0x04
 
 	MaxFramePayloadLen uint32 = 16 * 1024 * 1024
+	FragmentChunkSize  uint32 = 64 * 1024
+	FragmentHeaderSize uint32 = 8
 )
 
 func encodeU32(val uint32, out *[]byte) {
@@ -264,4 +267,38 @@ func (c *AESGCMCipher) Decrypt(ciphertext []byte) common.ByteVecResult {
 		return common.ErrByteVec("AES-GCM decrypt final failed: authentication tag mismatch")
 	}
 	return common.OkByteVec(plaintext)
+}
+
+type FragmentReassembly struct {
+	Buffer   []byte
+	Total    uint32
+	Received uint32
+}
+
+func (r *FragmentReassembly) Reset(totalSize uint32) {
+	r.Buffer = make([]byte, totalSize)
+	r.Total = totalSize
+	r.Received = 0
+}
+
+func (r *FragmentReassembly) IsComplete() bool {
+	return r.Received == r.Total && r.Total > 0
+}
+
+func BuildFragmentPayload(totalSize uint32, offset uint32, encryptedChunk []byte) []byte {
+	var payload []byte
+	encodeU32(totalSize, &payload)
+	encodeU32(offset, &payload)
+	payload = append(payload, encryptedChunk...)
+	return payload
+}
+
+func ParseFragmentHeader(payload []byte) (totalSize uint32, offset uint32, encryptedChunk []byte, err error) {
+	if uint32(len(payload)) < FragmentHeaderSize {
+		return 0, 0, nil, fmt.Errorf("fragment payload too small: %d < %d", len(payload), FragmentHeaderSize)
+	}
+	totalSize = decodeU32(payload[0:4])
+	offset = decodeU32(payload[4:8])
+	encryptedChunk = payload[FragmentHeaderSize:]
+	return totalSize, offset, encryptedChunk, nil
 }

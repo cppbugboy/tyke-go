@@ -17,8 +17,9 @@ import (
 )
 
 type clientConnectionImplWin struct {
-	conn   net.Conn
-	cipher *AESGCMCipher
+	conn       net.Conn
+	cipher     *AESGCMCipher
+	reassembly FragmentReassembly
 }
 
 func newClientConnectionImplWin() ClientConnection {
@@ -71,17 +72,45 @@ func isWinSysError(err error, code uintptr) bool {
 }
 
 func (c *clientConnectionImplWin) WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult {
-	encryptResult := c.cipher.Encrypt(data)
-	if !encryptResult.HasValue() {
-		return common.ErrBool("encrypt failed: " + encryptResult.Err)
-	}
-	frame := BuildFrame(MsgData, encryptResult.Value)
-	if c.conn != nil {
-		c.conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
-		_, err := c.conn.Write(frame)
-		if err != nil {
-			return common.ErrBool("write failed: " + err.Error())
+	if uint32(len(data)) <= FragmentChunkSize {
+		encryptResult := c.cipher.Encrypt(data)
+		if !encryptResult.HasValue() {
+			return common.ErrBool("encrypt failed: " + encryptResult.Err)
 		}
+		frame := BuildFrame(MsgData, encryptResult.Value)
+		if c.conn != nil {
+			c.conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
+			_, err := c.conn.Write(frame)
+			if err != nil {
+				return common.ErrBool("write failed: " + err.Error())
+			}
+		}
+		return common.OkBool(true)
+	}
+
+	remaining := len(data)
+	offset := 0
+	for remaining > 0 {
+		chunkSize := int(FragmentChunkSize)
+		if remaining < chunkSize {
+			chunkSize = remaining
+		}
+		chunk := data[offset : offset+chunkSize]
+		encryptResult := c.cipher.Encrypt(chunk)
+		if !encryptResult.HasValue() {
+			return common.ErrBool("encrypt fragment failed: " + encryptResult.Err)
+		}
+		fragmentPayload := BuildFragmentPayload(uint32(len(data)), uint32(offset), encryptResult.Value)
+		frame := BuildFrame(MsgDataFragment, fragmentPayload)
+		if c.conn != nil {
+			c.conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
+			_, err := c.conn.Write(frame)
+			if err != nil {
+				return common.ErrBool("write fragment failed: " + err.Error())
+			}
+		}
+		offset += chunkSize
+		remaining -= chunkSize
 	}
 	return common.OkBool(true)
 }
@@ -89,7 +118,7 @@ func (c *clientConnectionImplWin) WriteEncrypted(data []byte, timeoutMs uint32) 
 func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, timeoutMs uint32) common.BoolResult {
 	var rawBuf []byte
 	var plainBuf []byte
-	chunk := make([]byte, 4096)
+	chunk := make([]byte, 131072)
 	for {
 		if c.conn != nil {
 			c.conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
@@ -116,6 +145,27 @@ func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, time
 					return common.ErrBool("decrypt failed: " + decryptResult.Err)
 				}
 				plainBuf = append(plainBuf, decryptResult.Value...)
+			} else if frameType == MsgDataFragment {
+				totalSize, offset, encryptedChunk, parseErr := ParseFragmentHeader(payload)
+				if parseErr != nil {
+					return common.ErrBool("fragment parse failed: " + parseErr.Error())
+				}
+				decryptResult := c.cipher.Decrypt(encryptedChunk)
+				if !decryptResult.HasValue() {
+					return common.ErrBool("decrypt fragment failed: " + decryptResult.Err)
+				}
+				if offset == 0 {
+					c.reassembly.Reset(totalSize)
+				}
+				if int(offset)+len(decryptResult.Value) > int(c.reassembly.Total) {
+					return common.ErrBool("fragment offset overflow")
+				}
+				copy(c.reassembly.Buffer[offset:], decryptResult.Value)
+				c.reassembly.Received += uint32(len(decryptResult.Value))
+				if c.reassembly.IsComplete() {
+					plainBuf = append(plainBuf, c.reassembly.Buffer...)
+					c.reassembly = FragmentReassembly{}
+				}
 			}
 		}
 		if len(plainBuf) > 0 {
@@ -205,6 +255,7 @@ type clientContext struct {
 	rawRecvBuf   []byte
 	writeMu      sync.Mutex
 	pendingWrite []byte
+	reassembly   FragmentReassembly
 }
 
 type serverImplWin struct {
@@ -229,8 +280,8 @@ func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback
 	pipePath := `\\.\pipe\` + serverName
 	cfg := &winio.PipeConfig{
 		MessageMode:      false,
-		InputBufferSize:  4096,
-		OutputBufferSize: 4096,
+		InputBufferSize:  262144,
+		OutputBufferSize: 262144,
 	}
 	listener, err := winio.ListenPipe(pipePath, cfg)
 	if err != nil {
@@ -270,7 +321,7 @@ func (s *serverImplWin) acceptLoop() {
 
 func (s *serverImplWin) handleClient(cid ClientId, ctx *clientContext) {
 	common.LogInfo("Server handling client connection", "client_id", cid)
-	chunk := make([]byte, 4096)
+	chunk := make([]byte, 131072)
 	for s.running {
 		n, err := ctx.conn.Read(chunk)
 		if err != nil {
@@ -278,7 +329,7 @@ func (s *serverImplWin) handleClient(cid ClientId, ctx *clientContext) {
 			s.closeClient(cid)
 			return
 		}
-		common.LogDebug("Server read from client", "client_id", cid, "bytes", n)
+		common.LogInfo("Server read from client", "client_id", cid, "bytes", n)
 		ctx.rawRecvBuf = append(ctx.rawRecvBuf, chunk[:n]...)
 		if !s.processFrames(cid, ctx) {
 			common.LogError("Server processFrames failed for client", "client_id", cid)
@@ -341,27 +392,63 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 			common.LogInfo("Server handshake completed for client", "client_id", cid)
 			ctx.state = stateEstablished
 		} else if ctx.state == stateEstablished {
-			if frameType != MsgData {
-				common.LogError("Server received non-Data frame after handshake", "frame_type", fmt.Sprintf("0x%02X", frameType))
+			if frameType == MsgData {
+				decryptResult := ctx.cipher.Decrypt(payload)
+				if !decryptResult.HasValue() {
+					common.LogError("Server decrypt failed", "error", decryptResult.Err)
+					return false
+				}
+				dataCopy := decryptResult.Value
+				callback := s.callback
+				tp := component.GetThreadPoolInstance()
+				tp.Enqueue(func() {
+					cbSend := func(id ClientId, buf []byte) bool {
+						result := s.SendToClient(id, buf)
+						return result.HasValue()
+					}
+					if callback != nil {
+						callback(cid, dataCopy, cbSend)
+					}
+				})
+			} else if frameType == MsgDataFragment {
+				totalSize, offset, encryptedChunk, parseErr := ParseFragmentHeader(payload)
+				if parseErr != nil {
+					common.LogError("Server fragment parse failed", "error", parseErr)
+					return false
+				}
+				decryptResult := ctx.cipher.Decrypt(encryptedChunk)
+				if !decryptResult.HasValue() {
+					common.LogError("Server fragment decrypt failed", "error", decryptResult.Err)
+					return false
+				}
+				if offset == 0 {
+					ctx.reassembly.Reset(totalSize)
+				}
+				if int(offset)+len(decryptResult.Value) > int(ctx.reassembly.Total) {
+					common.LogError("Server fragment overflow", "offset", offset, "chunk_size", len(decryptResult.Value), "total", ctx.reassembly.Total)
+					return false
+				}
+				copy(ctx.reassembly.Buffer[offset:], decryptResult.Value)
+				ctx.reassembly.Received += uint32(len(decryptResult.Value))
+				if ctx.reassembly.IsComplete() {
+					dataCopy := ctx.reassembly.Buffer
+					ctx.reassembly = FragmentReassembly{}
+					callback := s.callback
+					tp := component.GetThreadPoolInstance()
+					tp.Enqueue(func() {
+						cbSend := func(id ClientId, buf []byte) bool {
+							result := s.SendToClient(id, buf)
+							return result.HasValue()
+						}
+						if callback != nil {
+							callback(cid, dataCopy, cbSend)
+						}
+					})
+				}
+			} else {
+				common.LogError("Server received unknown frame type", "frame_type", fmt.Sprintf("0x%02X", frameType))
 				return false
 			}
-			decryptResult := ctx.cipher.Decrypt(payload)
-			if !decryptResult.HasValue() {
-				common.LogError("Server decrypt failed", "error", decryptResult.Err)
-				return false
-			}
-			dataCopy := decryptResult.Value
-			callback := s.callback
-			tp := component.GetThreadPoolInstance()
-			tp.Enqueue(func() {
-				cbSend := func(id ClientId, buf []byte) bool {
-					result := s.SendToClient(id, buf)
-					return result.HasValue()
-				}
-				if callback != nil {
-					callback(cid, dataCopy, cbSend)
-				}
-			})
 		}
 	}
 	return true
@@ -415,16 +502,44 @@ func (s *serverImplWin) SendToClient(id ClientId, data []byte) common.BoolResult
 	if !ok {
 		return common.ErrBool("client not found")
 	}
-	encryptResult := ctx.cipher.Encrypt(data)
-	if !encryptResult.HasValue() {
-		return common.ErrBool("encrypt failed: " + encryptResult.Err)
+
+	if uint32(len(data)) <= FragmentChunkSize {
+		encryptResult := ctx.cipher.Encrypt(data)
+		if !encryptResult.HasValue() {
+			return common.ErrBool("encrypt failed: " + encryptResult.Err)
+		}
+		frame := BuildFrame(MsgData, encryptResult.Value)
+		ctx.writeMu.Lock()
+		ctx.pendingWrite = append(ctx.pendingWrite, frame...)
+		ctx.writeMu.Unlock()
+		if !s.writeToClient(ctx) {
+			return common.ErrBool("write to client failed")
+		}
+		return common.OkBool(true)
 	}
-	frame := BuildFrame(MsgData, encryptResult.Value)
-	ctx.writeMu.Lock()
-	ctx.pendingWrite = append(ctx.pendingWrite, frame...)
-	ctx.writeMu.Unlock()
+
+	remaining := len(data)
+	offset := 0
+	for remaining > 0 {
+		chunkSize := int(FragmentChunkSize)
+		if remaining < chunkSize {
+			chunkSize = remaining
+		}
+		chunk := data[offset : offset+chunkSize]
+		encryptResult := ctx.cipher.Encrypt(chunk)
+		if !encryptResult.HasValue() {
+			return common.ErrBool("encrypt fragment failed: " + encryptResult.Err)
+		}
+		fragmentPayload := BuildFragmentPayload(uint32(len(data)), uint32(offset), encryptResult.Value)
+		frame := BuildFrame(MsgDataFragment, fragmentPayload)
+		ctx.writeMu.Lock()
+		ctx.pendingWrite = append(ctx.pendingWrite, frame...)
+		ctx.writeMu.Unlock()
+		offset += chunkSize
+		remaining -= chunkSize
+	}
 	if !s.writeToClient(ctx) {
-		return common.ErrBool("write to client failed")
+		return common.ErrBool("write fragments to client failed")
 	}
 	return common.OkBool(true)
 }

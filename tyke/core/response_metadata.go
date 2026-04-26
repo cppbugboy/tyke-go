@@ -30,7 +30,7 @@ func (r ResponseMetadata) MarshalJSON() ([]byte, error) {
 	}
 	for k, v := range r.HeadersMap {
 		if _, exists := raw[k]; !exists {
-			raw[k] = v
+			raw[k] = v.Value()
 		}
 	}
 	return json.Marshal(raw)
