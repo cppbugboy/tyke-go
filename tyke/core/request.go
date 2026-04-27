@@ -13,6 +13,7 @@ type Request struct {
 	protocolHeader common.ProtocolHeader
 	metadata       RequestMetadata
 	content        []byte
+	context        component.Context
 }
 
 var requestPool = component.NewObjectPool(func() *Request {
@@ -113,6 +114,15 @@ func (r *Request) SetTimeout(timeout uint64) *Request {
 
 func (r *Request) GetTimeout() uint64 {
 	return r.metadata.GetTimeout()
+}
+
+func (r *Request) SetContext(ctx component.Context) *Request {
+	r.context = ctx
+	return r
+}
+
+func (r *Request) GetContext() component.Context {
+	return r.context
 }
 
 func (r *Request) Send(sendUuid string, response *Response, timeoutMs ...uint32) common.BoolResult {

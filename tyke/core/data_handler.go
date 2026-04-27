@@ -104,6 +104,8 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 		SetAsyncUUID(request.GetAsyncUUID()).
 		SetSendDataHandler(sendDataHandler)
 
+	defer ReleaseResponse(response)
+
 	timeoutMs := request.GetTimeout()
 	if timeoutMs == 0 {
 		timeoutMs = uint64(common.DefaultTimeoutMs)
@@ -118,7 +120,6 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 		if sendResult := response.Send(); !sendResult.HasValue() {
 			common.LogError("Send response failed", "error", sendResult.Err)
 		}
-		ReleaseResponse(response)
 		return
 	}
 
@@ -129,6 +130,7 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 		}
 	})
 	timerCtx.ActivateTimer()
+	request.SetContext(timerCtx)
 
 	DispatchRequest(request, response)
 
@@ -138,8 +140,6 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 			common.LogError("Send response failed", "error", sendResult.Err)
 		}
 	}
-
-	ReleaseResponse(response)
 }
 
 func RequestHandlerAsync(request *Request) {
@@ -152,6 +152,8 @@ func RequestHandlerAsync(request *Request) {
 		SetModule(request.GetModule()).
 		SetMsgUUID(request.GetMsgUUID()).
 		SetRoute(request.GetRoute())
+
+	defer ReleaseResponse(response)
 
 	switch request.GetMessageType() {
 	case common.MessageTypeRequestAsync:
@@ -176,7 +178,6 @@ func RequestHandlerAsync(request *Request) {
 		if sendResult := response.SendAsync(); !sendResult.HasValue() {
 			common.LogError("Send async response failed", "error", sendResult.Err)
 		}
-		ReleaseResponse(response)
 		return
 	}
 
@@ -187,6 +188,7 @@ func RequestHandlerAsync(request *Request) {
 		}
 	})
 	timerCtx.ActivateTimer()
+	request.SetContext(timerCtx)
 
 	DispatchRequest(request, response)
 
@@ -197,7 +199,6 @@ func RequestHandlerAsync(request *Request) {
 		}
 	}
 
-	ReleaseResponse(response)
 }
 
 func ResponseHandler(response *Response) {

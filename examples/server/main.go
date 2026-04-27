@@ -6,6 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	_ "tyke-go-project/examples/controllers"
 	"tyke-go/core"
 )
 
