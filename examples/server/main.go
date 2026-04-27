@@ -6,7 +6,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"tyke-go-project/examples/controllers"
 	"tyke-go/core"
 )
 
@@ -19,9 +18,6 @@ func main() {
 	framework := core.App()
 	framework.SetThreadPoolCount(4)
 	framework.SetLogConfig("./tyke_server.log", "debug", 1024, 5)
-
-	core.RegisterController(controllers.NewExampleRequestController())
-	core.RegisterController(controllers.NewExampleResponseController())
 
 	result := framework.Start("tyke_server_example")
 	if !result.HasValue() {

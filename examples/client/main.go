@@ -8,7 +8,6 @@ import (
 	"syscall"
 	"time"
 
-	"tyke-go-project/examples/controllers"
 	"tyke-go/common"
 	"tyke-go/core"
 )
@@ -214,8 +213,6 @@ func main() {
 	framework := core.App()
 	framework.SetThreadPoolCount(4)
 	framework.SetLogConfig("./tyke_client.log", "debug", 1024, 5)
-
-	core.RegisterController(controllers.NewExampleResponseController())
 
 	result := framework.Start(clientListenerUuid)
 	if !result.HasValue() {

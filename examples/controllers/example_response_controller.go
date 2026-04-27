@@ -8,26 +8,24 @@ import (
 	"tyke-go/core"
 )
 
-type ExampleResponseController struct{}
-
-func NewExampleResponseController() core.ControllerBase {
-	return &ExampleResponseController{}
+func init() {
+	ExampleResponseRegisterMethod()
 }
 
-func (c *ExampleResponseController) RegisterMethod() {
+func ExampleResponseRegisterMethod() {
 	fmt.Println("注册响应路由处理器...")
 
 	router := core.GetResponseRouter()
 	root := router.GetRoot()
 
-	root.Group("/api/async").Route("/callback", c.HandleAsyncCallback)
-	root.Group("/api/async").Route("/process", c.HandleAsyncCallback)
-	root.Group("/api/async").Route("/notification", c.HandleAsyncNotification)
+	root.Group("/api/async").Route("/callback", HandleAsyncCallback)
+	root.Group("/api/async").Route("/process", HandleAsyncCallback)
+	root.Group("/api/async").Route("/notification", HandleAsyncNotification)
 
 	fmt.Println("✓ 响应路由处理器注册完成")
 }
 
-func (c *ExampleResponseController) logResponse(response *core.Response, handlerName string) {
+func logResponse(response *core.Response, handlerName string) {
 	now := time.Now()
 	status, reason := response.GetResult()
 
@@ -51,16 +49,16 @@ func (c *ExampleResponseController) logResponse(response *core.Response, handler
 	fmt.Printf("========================================\n\n")
 }
 
-func (c *ExampleResponseController) HandleAsyncCallback(response *core.Response) {
-	c.logResponse(response, "HandleAsyncCallback")
+func HandleAsyncCallback(response *core.Response) {
+	logResponse(response, "HandleAsyncCallback")
 
 	fmt.Println("处理异步回调响应...")
 	fmt.Println("执行业务逻辑...")
 	fmt.Println("✓ 异步回调处理完成")
 }
 
-func (c *ExampleResponseController) HandleAsyncNotification(response *core.Response) {
-	c.logResponse(response, "HandleAsyncNotification")
+func HandleAsyncNotification(response *core.Response) {
+	logResponse(response, "HandleAsyncNotification")
 
 	fmt.Println("处理异步通知响应...")
 	fmt.Println("更新本地状态...")

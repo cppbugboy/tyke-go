@@ -9,28 +9,26 @@ import (
 	"tyke-go/core"
 )
 
-type ExampleRequestController struct{}
-
-func NewExampleRequestController() core.ControllerBase {
-	return &ExampleRequestController{}
+func init() {
+	ExampleRequestRegisterMethod()
 }
 
-func (c *ExampleRequestController) RegisterMethod() {
+func ExampleRequestRegisterMethod() {
 	fmt.Println("注册请求路由处理器...")
 
 	router := core.GetRequestRouter()
 	root := router.GetRoot()
 
-	root.Group("/api/user").Route("/login", c.HandleUserLogin)
-	root.Group("/api/user").Route("/logout", c.HandleUserLogout)
-	root.Group("/api/data").Route("/query", c.HandleDataQuery)
-	root.Group("/api/data").Route("/update", c.HandleDataUpdate)
-	root.Group("/api/async").Route("/process", c.HandleAsyncProcess)
+	root.Group("/api/user").Route("/login", HandleUserLogin)
+	root.Group("/api/user").Route("/logout", HandleUserLogout)
+	root.Group("/api/data").Route("/query", HandleDataQuery)
+	root.Group("/api/data").Route("/update", HandleDataUpdate)
+	root.Group("/api/async").Route("/process", HandleAsyncProcess)
 
 	fmt.Println("✓ 请求路由处理器注册完成")
 }
 
-func (c *ExampleRequestController) logRequest(request *core.Request, handlerName string) {
+func logRequest(request *core.Request, handlerName string) {
 	now := time.Now()
 	fmt.Printf("\n========================================\n")
 	fmt.Printf("[%s] 请求处理器: %s\n", now.Format("2006-01-02 15:04:05"), handlerName)
@@ -49,17 +47,7 @@ func (c *ExampleRequestController) logRequest(request *core.Request, handlerName
 	}
 }
 
-func (c *ExampleRequestController) logResponse(response *core.Response, handlerName string) {
-	now := time.Now()
-	status, reason := response.GetResult()
-
-	fmt.Printf("\n[%s] 响应已构建: %s\n", now.Format("2006-01-02 15:04:05"), handlerName)
-	fmt.Printf("状态码: %d\n", status)
-	fmt.Printf("原因: %s\n", reason)
-	fmt.Printf("========================================\n\n")
-}
-
-func (c *ExampleRequestController) validateRequest(request *core.Request, response *core.Response, requiredFields []string) bool {
+func validateRequest(request *core.Request, response *core.Response, requiredFields []string) bool {
 	contentType, content := request.GetContent()
 
 	if contentType != "json" {
@@ -83,11 +71,11 @@ func (c *ExampleRequestController) validateRequest(request *core.Request, respon
 	return true
 }
 
-func (c *ExampleRequestController) HandleUserLogin(request *core.Request, response *core.Response) {
-	c.logRequest(request, "HandleUserLogin")
+func HandleUserLogin(request *core.Request, response *core.Response) {
+	logRequest(request, "HandleUserLogin")
 
-	if !c.validateRequest(request, response, []string{"username", "password"}) {
-		c.logResponse(response, "HandleUserLogin")
+	if !validateRequest(request, response, []string{"username", "password"}) {
+		logResponse(response, "HandleUserLogin")
 		return
 	}
 
@@ -117,11 +105,11 @@ func (c *ExampleRequestController) HandleUserLogin(request *core.Request, respon
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
 
-	c.logResponse(response, "HandleUserLogin")
+	logResponse(response, "HandleUserLogin")
 }
 
-func (c *ExampleRequestController) HandleUserLogout(request *core.Request, response *core.Response) {
-	c.logRequest(request, "HandleUserLogout")
+func HandleUserLogout(request *core.Request, response *core.Response) {
+	logRequest(request, "HandleUserLogout")
 
 	responseData := map[string]interface{}{
 		"success": true,
@@ -135,11 +123,11 @@ func (c *ExampleRequestController) HandleUserLogout(request *core.Request, respo
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
 
-	c.logResponse(response, "HandleUserLogout")
+	logResponse(response, "HandleUserLogout")
 }
 
-func (c *ExampleRequestController) HandleDataQuery(request *core.Request, response *core.Response) {
-	c.logRequest(request, "HandleDataQuery")
+func HandleDataQuery(request *core.Request, response *core.Response) {
+	logRequest(request, "HandleDataQuery")
 
 	responseData := map[string]interface{}{
 		"success": true,
@@ -158,14 +146,14 @@ func (c *ExampleRequestController) HandleDataQuery(request *core.Request, respon
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
 
-	c.logResponse(response, "HandleDataQuery")
+	logResponse(response, "HandleDataQuery")
 }
 
-func (c *ExampleRequestController) HandleDataUpdate(request *core.Request, response *core.Response) {
-	c.logRequest(request, "HandleDataUpdate")
+func HandleDataUpdate(request *core.Request, response *core.Response) {
+	logRequest(request, "HandleDataUpdate")
 
-	if !c.validateRequest(request, response, []string{"id", "data"}) {
-		c.logResponse(response, "HandleDataUpdate")
+	if !validateRequest(request, response, []string{"id", "data"}) {
+		logResponse(response, "HandleDataUpdate")
 		return
 	}
 
@@ -182,11 +170,11 @@ func (c *ExampleRequestController) HandleDataUpdate(request *core.Request, respo
 	response.SetRoute(request.GetRoute())
 	response.SetMsgUUID(request.GetMsgUUID())
 
-	c.logResponse(response, "HandleDataUpdate")
+	logResponse(response, "HandleDataUpdate")
 }
 
-func (c *ExampleRequestController) HandleAsyncProcess(request *core.Request, response *core.Response) {
-	c.logRequest(request, "HandleAsyncProcess")
+func HandleAsyncProcess(request *core.Request, response *core.Response) {
+	logRequest(request, "HandleAsyncProcess")
 
 	responseData := map[string]interface{}{
 		"success":    true,
@@ -203,5 +191,5 @@ func (c *ExampleRequestController) HandleAsyncProcess(request *core.Request, res
 	response.SetMsgUUID(request.GetMsgUUID())
 	response.SetAsyncUUID(request.GetAsyncUUID())
 
-	c.logResponse(response, "HandleAsyncProcess")
+	logResponse(response, "HandleAsyncProcess")
 }
