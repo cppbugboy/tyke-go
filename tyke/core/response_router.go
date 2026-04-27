@@ -7,13 +7,9 @@ var (
 	responseRouterOnce     sync.Once
 )
 
-func GetResponseRouterInstance() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
+func GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
 	responseRouterOnce.Do(func() {
 		responseRouterInstance = NewRouterBase[ResponseFilter, ResponseHandlerFunc]()
 	})
 	return responseRouterInstance
-}
-
-func GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
-	return GetResponseRouterInstance()
 }

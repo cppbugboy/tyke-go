@@ -32,7 +32,9 @@ func init() {
 // AcquireRequest 从对象池获取一个 Request 实例。
 func AcquireRequest() *Request {
 	common.LogDebug("Acquiring request from pool")
-	return requestPool.Acquire()
+	request := requestPool.Acquire()
+	request.SetModule(common.ModuleName)
+	return request
 }
 
 // ReleaseRequest 将 Request 实例归还到对象池。

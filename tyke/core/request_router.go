@@ -7,13 +7,9 @@ var (
 	requestRouterOnce     sync.Once
 )
 
-func GetRequestRouterInstance() *RouterBase[RequestFilter, RequestHandlerFunc] {
+func GetRequestRouter() *RouterBase[RequestFilter, RequestHandlerFunc] {
 	requestRouterOnce.Do(func() {
 		requestRouterInstance = NewRouterBase[RequestFilter, RequestHandlerFunc]()
 	})
 	return requestRouterInstance
-}
-
-func GetRequestRouter() *RouterBase[RequestFilter, RequestHandlerFunc] {
-	return GetRequestRouterInstance()
 }

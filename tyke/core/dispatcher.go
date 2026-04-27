@@ -10,7 +10,7 @@ func DispatchRequest(request *Request, response *Response) {
 	start := time.Now()
 	common.LogDebug("Dispatching request", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
-	router := GetRequestRouterInstance()
+	router := GetRequestRouter()
 	routeEntry := router.GetRouteEntry(request.GetRoute())
 	if routeEntry == nil {
 		common.LogWarn("Request route not found", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
@@ -42,7 +42,7 @@ func DispatchRequest(request *Request, response *Response) {
 func DispatchResponse(response *Response) {
 	common.LogDebug("Dispatching response", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 
-	router := GetResponseRouterInstance()
+	router := GetResponseRouter()
 	routeEntry := router.GetRouteEntry(response.GetRoute())
 	if routeEntry == nil {
 		common.LogWarn("Response route not found, trying stub handlers", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())

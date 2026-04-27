@@ -18,6 +18,8 @@ const (
 // ProtocolMagic 是 Tyke 协议的魔数标识。
 var ProtocolMagic = [4]byte{'T', 'Y', 'K', 'E'}
 
+var ModuleName string
+
 // ContentType 定义了消息内容的编码格式。
 type StatusCode int
 

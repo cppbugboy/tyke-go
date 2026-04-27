@@ -19,11 +19,11 @@ func ExampleRequestRegisterMethod() {
 	router := core.GetRequestRouter()
 	root := router.GetRoot()
 
-	root.Group("/api/user").Route("/login", HandleUserLogin)
-	root.Group("/api/user").Route("/logout", HandleUserLogout)
-	root.Group("/api/data").Route("/query", HandleDataQuery)
-	root.Group("/api/data").Route("/update", HandleDataUpdate)
-	root.Group("/api/async").Route("/process", HandleAsyncProcess)
+	root.AddSubGroup("/api/user").AddRouteHandler("/login", HandleUserLogin)
+	root.AddSubGroup("/api/user").AddRouteHandler("/logout", HandleUserLogout)
+	root.AddSubGroup("/api/data").AddRouteHandler("/query", HandleDataQuery)
+	root.AddSubGroup("/api/data").AddRouteHandler("/update", HandleDataUpdate)
+	root.AddSubGroup("/api/async").AddRouteHandler("/process", HandleAsyncProcess)
 
 	fmt.Println("✓ 请求路由处理器注册完成")
 }

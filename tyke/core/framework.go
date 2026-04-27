@@ -57,6 +57,11 @@ func (f *Framework) SetLogConfig(logPath string, logLevel string, fileSizeMb uin
 }
 
 func (f *Framework) Start(listenUuid string) common.BoolResult {
+
+	if !common.IsValidUUID(listenUuid) {
+		return common.ErrBool("uuid is invalid")
+	}
+
 	logInstance := GetTykeLogInstance()
 	if !logInstance.IsInitialized() {
 		logPath := f.logPath
@@ -115,12 +120,16 @@ func (f *Framework) Start(listenUuid string) common.BoolResult {
 	return common.OkBool(true)
 }
 
+func SetModuleName(moduleName string) {
+	common.ModuleName = moduleName
+}
+
 func (f *Framework) GetRequestRouter() *RouterBase[RequestFilter, RequestHandlerFunc] {
-	return GetRequestRouterInstance()
+	return GetRequestRouter()
 }
 
 func (f *Framework) GetResponseRouter() *RouterBase[ResponseFilter, ResponseHandlerFunc] {
-	return GetResponseRouterInstance()
+	return GetResponseRouter()
 }
 
 func (f *Framework) Shutdown() {

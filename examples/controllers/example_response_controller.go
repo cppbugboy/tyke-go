@@ -18,9 +18,9 @@ func ExampleResponseRegisterMethod() {
 	router := core.GetResponseRouter()
 	root := router.GetRoot()
 
-	root.Group("/api/async").Route("/callback", HandleAsyncCallback)
-	root.Group("/api/async").Route("/process", HandleAsyncCallback)
-	root.Group("/api/async").Route("/notification", HandleAsyncNotification)
+	root.AddSubGroup("/api/async").AddRouteHandler("/callback", HandleAsyncCallback)
+	root.AddSubGroup("/api/async").AddRouteHandler("/process", HandleAsyncCallback)
+	root.AddSubGroup("/api/async").AddRouteHandler("/notification", HandleAsyncNotification)
 
 	fmt.Println("✓ 响应路由处理器注册完成")
 }
