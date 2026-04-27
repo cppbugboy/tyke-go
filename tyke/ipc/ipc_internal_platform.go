@@ -1,6 +1,6 @@
 package ipc
 
-import "github.com/cppbugboy/tyke-go/tyke/common"
+import "tyke-go/common"
 
 type ClientConnection interface {
 	Connect(serverName string, timeoutMs uint32) common.BoolResult

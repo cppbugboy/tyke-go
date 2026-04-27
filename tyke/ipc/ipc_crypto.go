@@ -16,7 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 const (

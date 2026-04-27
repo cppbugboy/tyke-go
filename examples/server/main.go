@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cppbugboy/tyke-go/examples/controllers"
-	"github.com/cppbugboy/tyke-go/tyke/core"
+	"tyke-go-project/examples/controllers"
+	"tyke-go/core"
 )
 
 func main() {

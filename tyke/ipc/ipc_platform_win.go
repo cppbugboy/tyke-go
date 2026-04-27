@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/cppbugboy/tyke-go/tyke/component"
+	"tyke-go/common"
+	"tyke-go/component"
 )
 
 type clientConnectionImplWin struct {

@@ -3,7 +3,7 @@ package core
 import (
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 // ResponseFuture 表示异步请求的未来结果，可通过通道等待响应。

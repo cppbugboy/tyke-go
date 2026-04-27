@@ -3,7 +3,7 @@ package core
 import (
 	"sync"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 type RouterBase[FilterType any, HandlerFunc any] struct {

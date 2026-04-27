@@ -46,7 +46,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 // TaskType 区分不同类型的定时任务。

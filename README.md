@@ -32,7 +32,7 @@ require (
 ### 安装
 
 ```bash
-go get github.com/cppbugboy/tyke-go
+go get tyke-go
 ```
 
 ### 服务端示�?
@@ -42,8 +42,8 @@ package main
 import (
     "fmt"
     
-    "github.com/cppbugboy/tyke-go/tyke/component"
-    "github.com/cppbugboy/tyke-go/tyke/ipc"
+    "tyke-go/component"
+    "tyke-go/ipc"
 )
 
 func main() {
@@ -77,7 +77,7 @@ package main
 import (
     "fmt"
     
-    "github.com/cppbugboy/tyke-go/tyke/ipc"
+    "tyke-go/ipc"
 )
 
 func main() {
@@ -109,8 +109,8 @@ package main
 import (
     "fmt"
     
-    "github.com/cppbugboy/tyke-go/tyke/component"
-    "github.com/cppbugboy/tyke-go/tyke/ipc"
+    "tyke-go/component"
+    "tyke-go/ipc"
 )
 
 func main() {

@@ -3,9 +3,9 @@ package core
 import (
 	"fmt"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/cppbugboy/tyke-go/tyke/component"
-	"github.com/cppbugboy/tyke-go/tyke/ipc"
+	"tyke-go/common"
+	"tyke-go/component"
+	"tyke-go/ipc"
 )
 
 // Request 表示一个 IPC 请求对象，支持同步和异步发送。

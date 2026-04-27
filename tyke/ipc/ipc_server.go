@@ -1,6 +1,6 @@
 package ipc
 
-import "github.com/cppbugboy/tyke-go/tyke/common"
+import "tyke-go/common"
 
 type IPCServer struct {
 	impl Server

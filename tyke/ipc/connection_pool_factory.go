@@ -3,7 +3,7 @@ package ipc
 import (
 	"sync"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 type ConnectionPoolFactory struct {

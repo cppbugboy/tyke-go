@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/cppbugboy/tyke-go/tyke/core"
+	"tyke-go/common"
+	"tyke-go/core"
 )
 
 type ExampleRequestController struct{}

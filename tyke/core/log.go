@@ -6,8 +6,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"tyke-go/common"
 )
 
 type LogConfig struct {

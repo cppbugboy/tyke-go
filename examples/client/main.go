@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/examples/controllers"
-	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/cppbugboy/tyke-go/tyke/core"
+	"tyke-go-project/examples/controllers"
+	"tyke-go/common"
+	"tyke-go/core"
 )
 
 const (

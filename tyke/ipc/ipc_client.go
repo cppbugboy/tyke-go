@@ -3,7 +3,7 @@ package ipc
 import (
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 type IPCConnection struct {

@@ -42,7 +42,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 // 队列和扩缩容相关常量，使用合理的默认值。

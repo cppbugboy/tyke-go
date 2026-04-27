@@ -3,7 +3,7 @@ package core
 import (
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/component"
+	"tyke-go/component"
 )
 
 type ContextFactory struct{}

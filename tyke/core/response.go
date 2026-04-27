@@ -3,9 +3,9 @@ package core
 import (
 	"sync/atomic"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/cppbugboy/tyke-go/tyke/component"
-	"github.com/cppbugboy/tyke-go/tyke/ipc"
+	"tyke-go/common"
+	"tyke-go/component"
+	"tyke-go/ipc"
 )
 
 type SendDataHandler func(clientId ipc.ClientId, data []byte) bool

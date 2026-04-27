@@ -33,7 +33,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 // ObjectPoolMetrics 包含对象池的运行时统计信息。

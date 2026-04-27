@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/component"
-	"github.com/cppbugboy/tyke-go/tyke/ipc"
+	"tyke-go/component"
+	"tyke-go/ipc"
 )
 
 func main() {

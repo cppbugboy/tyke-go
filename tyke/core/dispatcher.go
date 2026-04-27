@@ -3,7 +3,7 @@ package core
 import (
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 func DispatchRequest(request *Request, response *Response) {

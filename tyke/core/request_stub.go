@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
-	"github.com/cppbugboy/tyke-go/tyke/component"
+	"tyke-go/common"
+	"tyke-go/component"
 )
 
 type futureEntry struct {

@@ -36,7 +36,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 // ContextError 表示上下文被取消的原因。

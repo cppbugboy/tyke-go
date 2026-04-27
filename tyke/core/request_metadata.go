@@ -3,7 +3,7 @@ package core
 import (
 	"encoding/json"
 
-	"github.com/cppbugboy/tyke-go/tyke/common"
+	"tyke-go/common"
 )
 
 type RequestMetadata struct {
