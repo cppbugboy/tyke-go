@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	serverUuid         = "tyke_server_example"
-	clientListenerUuid = "tyke_client_listener_go"
+	serverUuid         = "1879b1d8-8ab0-4542-8421-8d845eca6587"
+	clientListenerUuid = "c6ea2fe2-a1d0-4b90-a739-ce78cdaf7b6e"
 )
 
 func printRequestHeader(title string, targetUuid string, request *core.Request) {
