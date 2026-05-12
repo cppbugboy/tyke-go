@@ -308,8 +308,10 @@ func (tw *TimingWheel) AddTaskAt(deadline time.Time, cb func()) TimerId {
 	tw.mu.Unlock()
 
 	go func() {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
 		select {
-		case <-time.After(delay):
+		case <-timer.C:
 			tw.mu.Lock()
 			t, exists := tw.timerTasks[id]
 			if exists && !t.Cancelled {
@@ -387,9 +389,11 @@ func (tw *TimingWheel) AddRepeatedTask(initialDelayMs uint32, intervalMs uint32,
 
 	go func() {
 		if initialDelayMs > 0 {
+			timer := time.NewTimer(time.Duration(initialDelayMs) * time.Millisecond)
 			select {
-			case <-time.After(time.Duration(initialDelayMs) * time.Millisecond):
+			case <-timer.C:
 			case <-tw.stopCh:
+				timer.Stop()
 				return
 			}
 		}
@@ -405,9 +409,11 @@ func (tw *TimingWheel) AddRepeatedTask(initialDelayMs uint32, intervalMs uint32,
 
 			cb()
 
+			timer := time.NewTimer(time.Duration(intervalMs) * time.Millisecond)
 			select {
-			case <-time.After(time.Duration(intervalMs) * time.Millisecond):
+			case <-timer.C:
 			case <-tw.stopCh:
+				timer.Stop()
 				return
 			}
 		}

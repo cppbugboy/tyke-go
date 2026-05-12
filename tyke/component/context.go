@@ -32,6 +32,7 @@
 package component
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -596,4 +597,53 @@ func ContextWithValue(parent Context, key any, val any) Context {
 
 func init() {
 	common.LogDebug("Context package initialized")
+}
+
+// StdContext 将自定义 Context 适配为 Go 标准库的 context.Context 接口。
+// 这使得 Tyke Context 可以与接受 context.Context 的第三方库和标准库函数互操作。
+type StdContext struct {
+	ctx Context
+}
+
+// NewStdContext 从自定义 Context 创建一个标准 context.Context。
+func NewStdContext(ctx Context) context.Context {
+	return &StdContext{ctx: ctx}
+}
+
+// Deadline 实现 context.Context.Deadline。
+func (c *StdContext) Deadline() (time.Time, bool) {
+	return c.ctx.Deadline()
+}
+
+// Done 实现 context.Context.Done。
+// 返回一个在上下文被取消时关闭的通道。
+func (c *StdContext) Done() <-chan struct{} {
+	done := make(chan struct{})
+	if c.ctx.IsDone() {
+		close(done)
+		return done
+	}
+	go func() {
+		c.ctx.Wait()
+		close(done)
+	}()
+	return done
+}
+
+// Err 实现 context.Context.Err。
+// 将自定义 ContextError 映射为标准 context 错误。
+func (c *StdContext) Err() error {
+	switch c.ctx.Err() {
+	case ContextErrorCanceled:
+		return context.Canceled
+	case ContextErrorDeadlineExceeded:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+
+// Value 实现 context.Context.Value。
+func (c *StdContext) Value(key any) any {
+	return c.ctx.Value(key)
 }

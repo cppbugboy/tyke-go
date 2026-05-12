@@ -143,6 +143,12 @@ func decode(dataVec []byte, msg decodable, dataSize *uint32) bool {
 		return false
 	}
 
+	// 防御性检查：防止 metaLen + contLen 整数溢出
+	if uint64(metaLen)+uint64(contLen) > uint64(^uint32(0)) {
+		common.LogError("Metadata + content length overflow", "meta", metaLen, "content", contLen)
+		return false
+	}
+
 	if vecSize < headerSize+metaLen+contLen {
 		common.LogError("Data incomplete", "expected", headerSize+metaLen+contLen, "got", vecSize)
 		return false

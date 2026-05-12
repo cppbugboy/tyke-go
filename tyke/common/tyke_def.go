@@ -51,6 +51,13 @@ var ContentTypeMap = map[ContentType]string{
 	ContentTypeBinary: "binary",
 }
 
+// StringToContentType 提供从字符串到 ContentType 的反向映射。
+var StringToContentType = map[string]ContentType{
+	"text":   ContentTypeText,
+	"json":   ContentTypeJson,
+	"binary": ContentTypeBinary,
+}
+
 // MessageType 定义了 IPC 消息的类型枚举。
 type MessageType uint32
 

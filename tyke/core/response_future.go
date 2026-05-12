@@ -1,6 +1,7 @@
 package core
 
 import (
+	"fmt"
 	"time"
 
 	"tyke-go/common"
@@ -23,14 +24,13 @@ func (f *ResponseFuture) GetResponse() *Response {
 }
 
 func (f *ResponseFuture) GetResponseWithTimeout(timeoutMs uint32) (*Response, error) {
+	timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
+	defer timer.Stop()
 	select {
 	case resp := <-f.ch:
 		return resp, nil
-	case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
+	case <-timer.C:
 		common.LogWarn("GetResponse timeout", "msg_uuid", f.msgUuid, "timeout", timeoutMs)
-		timeoutResp := &Response{}
-		timeoutResp.SetMsgUUID(f.msgUuid)
-		timeoutResp.SetResult(-1, "timeout")
-		return timeoutResp, nil
+		return nil, fmt.Errorf("GetResponse timeout for msg_uuid=%s after %dms", f.msgUuid, timeoutMs)
 	}
 }
