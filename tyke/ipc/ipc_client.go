@@ -1,6 +1,7 @@
 package ipc
 
 import (
+	"sync/atomic"
 	"time"
 
 	"tyke-go/common"
@@ -8,7 +9,7 @@ import (
 
 type IPCConnection struct {
 	impl     ClientConnection
-	lastUsed time.Time
+	lastUsed atomic.Int64
 }
 
 func NewIPCConnection() *IPCConnection {
@@ -29,12 +30,12 @@ func (c *IPCConnection) Connect(serverName string, timeoutMs uint32) common.Bool
 	return common.OkBool(true)
 }
 
-func (c *IPCConnection) WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult {
-	common.LogDebug("WriteEncrypted", "size", len(data), "timeout", timeoutMs)
-	result := c.impl.WriteEncrypted(data, timeoutMs)
+func (c *IPCConnection) Write(data []byte, timeoutMs uint32) common.BoolResult {
+	common.LogDebug("Write", "size", len(data), "timeout", timeoutMs)
+	result := c.impl.Write(data, timeoutMs)
 	if !result.HasValue() {
-		common.LogError("WriteEncrypted failed", "error", result.Err)
-		return common.ErrBool("write encrypted failed: " + result.Err)
+		common.LogError("Write failed", "error", result.Err)
+		return common.ErrBool("write failed: " + result.Err)
 	}
 	return common.OkBool(true)
 }
@@ -59,11 +60,11 @@ func (c *IPCConnection) IsValid() bool {
 }
 
 func (c *IPCConnection) UpdateLastUsedTime() {
-	c.lastUsed = time.Now()
+	c.lastUsed.Store(time.Now().UnixNano())
 }
 
 func (c *IPCConnection) GetLastUsedTime() time.Time {
-	return c.lastUsed
+	return time.Unix(0, c.lastUsed.Load())
 }
 
 func IPCClientSend(serverName string, request []byte, callback ClientRecvDataCallback, timeoutMs ...uint32) common.BoolResult {
@@ -80,7 +81,7 @@ func IPCClientSend(serverName string, request []byte, callback ClientRecvDataCal
 		return common.ErrBool("send: " + err.Error())
 	}
 
-	if writeResult := conn.WriteEncrypted(request, tm); !writeResult.HasValue() {
+	if writeResult := conn.Write(request, tm); !writeResult.HasValue() {
 		common.LogError("IPC client sending data write failed", "error", writeResult.Err)
 		pool.Release(conn, true)
 		return common.ErrBool("send: " + writeResult.Err)
@@ -110,13 +111,14 @@ func IPCClientSendAsync(serverName string, request []byte, timeoutMs ...uint32) 
 		return common.ErrBool("send async: " + err.Error())
 	}
 
-	if writeResult := conn.WriteEncrypted(request, tm); !writeResult.HasValue() {
+	if writeResult := conn.Write(request, tm); !writeResult.HasValue() {
 		common.LogError("IPC client sending dataAsync write failed", "error", writeResult.Err)
 		pool.Release(conn, true)
-		return common.ErrBool("send async: write encrypted failed")
+		return common.ErrBool("send async: write failed")
 	}
 
-	pool.Release(conn, true)
+	// 成功路径归还连接以复用（与 C++ RAII Release(conn,false) 行为对齐）
+	pool.Release(conn, false)
 
 	common.LogDebug("IPC client sending dataAsync completed successfully")
 	return common.OkBool(true)

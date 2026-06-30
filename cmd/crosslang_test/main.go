@@ -96,7 +96,7 @@ func runGoClient(name string) {
 		for i := range data {
 			data[i] = byte(i & 0xFF)
 		}
-		writeResult := conn.WriteEncrypted(data, 5000)
+		writeResult := conn.Write(data, 5000)
 		if !writeResult.HasValue() {
 			fmt.Printf("[Go Client] Write %d bytes failed: %s\n", size, writeResult.Err)
 		} else {
@@ -143,7 +143,7 @@ func runAllCrossLangTests() {
 		defer conn.Close()
 
 		testData := []byte{0xCA, 0xFE, 0xBA, 0xBE}
-		wr := conn.WriteEncrypted(testData, 3000)
+		wr := conn.Write(testData, 3000)
 		if !wr.HasValue() {
 			fmt.Printf("  FAIL: Write failed: %s\n", wr.Err)
 			return false
@@ -191,7 +191,7 @@ func runAllCrossLangTests() {
 		for i := range testData {
 			testData[i] = byte(i & 0xFF)
 		}
-		wr := conn.WriteEncrypted(testData, 5000)
+		wr := conn.Write(testData, 5000)
 		if !wr.HasValue() {
 			fmt.Printf("  FAIL: Write failed: %s\n", wr.Err)
 			return false
@@ -239,7 +239,7 @@ func runAllCrossLangTests() {
 		defer conn.Close()
 
 		req := []byte{0xCA, 0xFE}
-		conn.WriteEncrypted(req, 3000)
+		conn.Write(req, 3000)
 
 		go func() {
 			conn.ReadLoop(func(data []byte) bool {
@@ -287,7 +287,7 @@ func runAllCrossLangTests() {
 				cr := conn.Connect("cross_go_concurrent", 3000)
 				if cr.HasValue() {
 					success.Add(1)
-					conn.WriteEncrypted([]byte{0x01}, 3000)
+					conn.Write([]byte{0x01}, 3000)
 					time.Sleep(10 * time.Millisecond)
 				}
 				conn.Close()
@@ -314,12 +314,108 @@ func runAllCrossLangTests() {
 		defer conn.Close()
 
 		testData := []byte{0xCA, 0xFE, 0xBA, 0xBE}
-		wr := conn.WriteEncrypted(testData, 3000)
+		wr := conn.Write(testData, 3000)
 		if !wr.HasValue() {
 			fmt.Printf("  FAIL: Write to C++ server failed: %s\n", wr.Err)
 			return false
 		}
 		fmt.Println("  PASS: Go Client connected and sent data to C++ Server")
+		return true
+	}
+
+	testFragmentBoundary := func() bool {
+		fmt.Println("[Test 6] Fragment Boundary (65537 bytes = exactly 2 fragments)")
+		var received []byte
+		var dataReceived atomic.Bool
+		server := ipc.NewIPCServer()
+		callback := func(cid ipc.ClientId, data []byte, sendCb func(ipc.ClientId, []byte) bool) *uint32 {
+			received = make([]byte, len(data))
+			copy(received, data)
+			dataReceived.Store(true)
+			return nil
+		}
+		result := server.Start("cross_go_frag_boundary", callback)
+		if !result.HasValue() {
+			fmt.Printf("  FAIL: Server start failed: %s\n", result.Err)
+			return false
+		}
+		defer server.Stop()
+
+		conn := ipc.NewIPCConnection()
+		cr := conn.Connect("cross_go_frag_boundary", 3000)
+		if !cr.HasValue() {
+			fmt.Printf("  FAIL: Client connect failed: %s\n", cr.Err)
+			return false
+		}
+		defer conn.Close()
+
+		msgSize := int(ipc.FragmentChunkSize) + 1
+		testData := make([]byte, msgSize)
+		for i := range testData {
+			testData[i] = byte(i & 0xFF)
+		}
+		wr := conn.Write(testData, 5000)
+		if !wr.HasValue() {
+			fmt.Printf("  FAIL: Write failed: %s\n", wr.Err)
+			return false
+		}
+
+		for i := 0; i < 200 && !dataReceived.Load(); i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if !dataReceived.Load() || !bytes.Equal(received, testData) {
+			fmt.Printf("  FAIL: Fragment boundary mismatch (received %d bytes, expected %d)\n", len(received), msgSize)
+			return false
+		}
+		fmt.Printf("  PASS: Fragment boundary 65537 bytes (2 fragments) received correctly\n")
+		return true
+	}
+
+	testEmptyPayload := func() bool {
+		fmt.Println("[Test 7] Empty Payload (0 bytes)")
+		var received []byte
+		var dataReceived atomic.Bool
+		server := ipc.NewIPCServer()
+		callback := func(cid ipc.ClientId, data []byte, sendCb func(ipc.ClientId, []byte) bool) *uint32 {
+			received = make([]byte, len(data))
+			copy(received, data)
+			dataReceived.Store(true)
+			return nil
+		}
+		result := server.Start("cross_go_empty", callback)
+		if !result.HasValue() {
+			fmt.Printf("  FAIL: Server start failed: %s\n", result.Err)
+			return false
+		}
+		defer server.Stop()
+
+		conn := ipc.NewIPCConnection()
+		cr := conn.Connect("cross_go_empty", 3000)
+		if !cr.HasValue() {
+			fmt.Printf("  FAIL: Client connect failed: %s\n", cr.Err)
+			return false
+		}
+		defer conn.Close()
+
+		testData := []byte{}
+		wr := conn.Write(testData, 3000)
+		if !wr.HasValue() {
+			fmt.Printf("  FAIL: Write empty payload failed: %s\n", wr.Err)
+			return false
+		}
+
+		for i := 0; i < 100 && !dataReceived.Load(); i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		if !dataReceived.Load() {
+			fmt.Println("  FAIL: Empty payload not received by server")
+			return false
+		}
+		if len(received) != 0 {
+			fmt.Printf("  FAIL: Expected 0 bytes, got %d\n", len(received))
+			return false
+		}
+		fmt.Println("  PASS: Empty payload (0 bytes) received correctly")
 		return true
 	}
 
@@ -329,6 +425,8 @@ func runAllCrossLangTests() {
 		testGoServerBidirectional,
 		testGoServerConcurrent,
 		testCppServerGoClient,
+		testFragmentBoundary,
+		testEmptyPayload,
 	}
 
 	for _, test := range tests {

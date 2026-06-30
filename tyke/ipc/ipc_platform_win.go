@@ -17,14 +17,18 @@ import (
 	"tyke-go/component"
 )
 
+// serverReadTimeout 是服务端单次读取客户端数据的超时时间，
+// 超时后关闭连接，避免慢/卡死客户端永久占用 goroutine。
+const serverReadTimeout = 30 * time.Second
+
 type clientConnectionImplWin struct {
+	mu         sync.Mutex
 	conn       net.Conn
-	cipher     *AESGCMCipher
 	reassembly FragmentReassembly
 }
 
 func newClientConnectionImplWin() ClientConnection {
-	return &clientConnectionImplWin{cipher: NewAESGCMCipher()}
+	return &clientConnectionImplWin{}
 }
 
 func (c *clientConnectionImplWin) Connect(serverName string, timeoutMs uint32) common.BoolResult {
@@ -35,8 +39,10 @@ func (c *clientConnectionImplWin) Connect(serverName string, timeoutMs uint32) c
 	for time.Now().Before(deadline) {
 		conn, err := winio.DialPipe(pipePath, nil)
 		if err == nil {
+			c.mu.Lock()
 			c.conn = conn
-			return c.doHandshake(timeoutMs)
+			c.mu.Unlock()
+			return common.OkBool(true)
 		}
 		if os.IsNotExist(err) || isPipeBusy(err) {
 			time.Sleep(10 * time.Millisecond)
@@ -72,19 +78,20 @@ func isWinSysError(err error, code uintptr) bool {
 	return false
 }
 
-func (c *clientConnectionImplWin) WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult {
+func (c *clientConnectionImplWin) Write(data []byte, timeoutMs uint32) common.BoolResult {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return common.ErrBool("write failed: not connected")
+	}
+
 	if uint32(len(data)) <= FragmentChunkSize {
-		encryptResult := c.cipher.Encrypt(data)
-		if !encryptResult.HasValue() {
-			return common.ErrBool("encrypt failed: " + encryptResult.Err)
-		}
-		frame := BuildFrame(MsgData, encryptResult.Value)
-		if c.conn != nil {
-			c.conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
-			_, err := c.conn.Write(frame)
-			if err != nil {
-				return common.ErrBool("write failed: " + err.Error())
-			}
+		frame := BuildFrame(MsgData, data)
+		conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
+		_, err := conn.Write(frame)
+		if err != nil {
+			return common.ErrBool("write failed: " + err.Error())
 		}
 		return common.OkBool(true)
 	}
@@ -97,18 +104,12 @@ func (c *clientConnectionImplWin) WriteEncrypted(data []byte, timeoutMs uint32) 
 			chunkSize = remaining
 		}
 		chunk := data[offset : offset+chunkSize]
-		encryptResult := c.cipher.Encrypt(chunk)
-		if !encryptResult.HasValue() {
-			return common.ErrBool("encrypt fragment failed: " + encryptResult.Err)
-		}
-		fragmentPayload := BuildFragmentPayload(uint32(len(data)), uint32(offset), encryptResult.Value)
+		fragmentPayload := BuildFragmentPayload(uint32(len(data)), uint32(offset), chunk)
 		frame := BuildFrame(MsgDataFragment, fragmentPayload)
-		if c.conn != nil {
-			c.conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
-			_, err := c.conn.Write(frame)
-			if err != nil {
-				return common.ErrBool("write fragment failed: " + err.Error())
-			}
+		conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
+		_, err := conn.Write(frame)
+		if err != nil {
+			return common.ErrBool("write fragment failed: " + err.Error())
 		}
 		offset += chunkSize
 		remaining -= chunkSize
@@ -117,14 +118,18 @@ func (c *clientConnectionImplWin) WriteEncrypted(data []byte, timeoutMs uint32) 
 }
 
 func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, timeoutMs uint32) common.BoolResult {
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	if conn == nil {
+		return common.ErrBool("read loop: connection not established")
+	}
 	var rawBuf []byte
 	var plainBuf []byte
 	chunk := make([]byte, 131072)
 	for {
-		if c.conn != nil {
-			c.conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
-		}
-		n, err := c.conn.Read(chunk)
+		conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
+		n, err := conn.Read(chunk)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -141,33 +146,27 @@ func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, time
 				break
 			}
 			if frameType == MsgData {
-				decryptResult := c.cipher.Decrypt(payload)
-				if !decryptResult.HasValue() {
-					return common.ErrBool("decrypt failed: " + decryptResult.Err)
-				}
-				plainBuf = append(plainBuf, decryptResult.Value...)
+				plainBuf = append(plainBuf, payload...)
 			} else if frameType == MsgDataFragment {
-				totalSize, offset, encryptedChunk, parseErr := ParseFragmentHeader(payload)
+				totalSize, offset, chunkData, parseErr := ParseFragmentHeader(payload)
 				if parseErr != nil {
 					return common.ErrBool("fragment parse failed: " + parseErr.Error())
-				}
-				decryptResult := c.cipher.Decrypt(encryptedChunk)
-				if !decryptResult.HasValue() {
-					return common.ErrBool("decrypt fragment failed: " + decryptResult.Err)
 				}
 				if offset == 0 {
 					c.reassembly.Reset(totalSize)
 				}
-				if !c.reassembly.ValidateOffset(offset, len(decryptResult.Value)) {
+				if !c.reassembly.ValidateOffset(offset, len(chunkData)) {
 					return common.ErrBool("fragment offset out of order or overflow")
 				}
-				copy(c.reassembly.Buffer[offset:], decryptResult.Value)
-				c.reassembly.Received += uint32(len(decryptResult.Value))
-				c.reassembly.NextOffset = offset + uint32(len(decryptResult.Value))
+				copy(c.reassembly.Buffer[offset:], chunkData)
+				c.reassembly.Received += uint32(len(chunkData))
+				c.reassembly.NextOffset = offset + uint32(len(chunkData))
 				if c.reassembly.IsComplete() {
 					plainBuf = append(plainBuf, c.reassembly.Buffer...)
 					c.reassembly = FragmentReassembly{}
 				}
+			} else {
+				return common.ErrBool(fmt.Sprintf("unknown frame type: 0x%02X", frameType))
 			}
 		}
 		if len(plainBuf) > 0 {
@@ -182,78 +181,24 @@ func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, time
 
 func (c *clientConnectionImplWin) Close() {
 	common.LogInfo("IPC client closing connection")
-	if c.conn != nil {
-		c.conn.Close()
-		c.conn = nil
+	c.mu.Lock()
+	conn := c.conn
+	c.conn = nil
+	c.mu.Unlock()
+	if conn != nil {
+		conn.Close()
 	}
 }
 
 func (c *clientConnectionImplWin) IsValid() bool {
-	return c.conn != nil && c.cipher.IsInitialized()
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+	return conn != nil
 }
-
-func (c *clientConnectionImplWin) doHandshake(timeoutMs uint32) common.BoolResult {
-	ecdh := NewECDHKeyExchange()
-	if genResult := ecdh.GenerateKey(); !genResult.HasValue() {
-		return common.ErrBool("handshake: key generation failed: " + genResult.Err)
-	}
-	pubDerResult := ecdh.GetPublicKeyDer()
-	if !pubDerResult.HasValue() {
-		return common.ErrBool("handshake: get public key failed: " + pubDerResult.Err)
-	}
-	initFrame := BuildFrame(MsgHandshakeInit, pubDerResult.Value)
-	if c.conn != nil {
-		c.conn.SetWriteDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
-		_, err := c.conn.Write(initFrame)
-		if err != nil {
-			return common.ErrBool("handshake: write init frame failed: " + err.Error())
-		}
-	}
-
-	var rawBuf []byte
-	chunk := make([]byte, 1024)
-	for {
-		if c.conn != nil {
-			c.conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
-		}
-		n, err := c.conn.Read(chunk)
-		if err != nil {
-			return common.ErrBool("handshake: read failed: " + err.Error())
-		}
-		if n == 0 {
-			return common.ErrBool("handshake: connection closed")
-		}
-		rawBuf = append(rawBuf, chunk[:n]...)
-		frameType, payload, extractErr := ExtractFrame(&rawBuf)
-		if extractErr != nil {
-			continue
-		}
-		if frameType == MsgHandshakeResp {
-			secretResult := ecdh.ComputeSharedSecret(payload)
-			if !secretResult.HasValue() {
-				return common.ErrBool("handshake: compute shared secret failed: " + secretResult.Err)
-			}
-			if initResult := c.cipher.Init(secretResult.Value); !initResult.HasValue() {
-				return common.ErrBool("handshake: cipher init failed: " + initResult.Err)
-			}
-			return common.OkBool(true)
-		}
-		return common.ErrBool("handshake: unexpected frame type")
-	}
-}
-
-type clientState int
-
-const (
-	stateWaitHello clientState = iota
-	stateEstablished
-)
 
 type clientContext struct {
 	conn         net.Conn
-	state        clientState
-	ecdh         *ECDHKeyExchange
-	cipher       *AESGCMCipher
 	rawRecvBuf   []byte
 	writeMu      sync.Mutex
 	pendingWrite []byte
@@ -263,7 +208,7 @@ type clientContext struct {
 type serverImplWin struct {
 	serverName string
 	listener   net.Listener
-	running    bool
+	running    atomic.Bool
 	mu         sync.Mutex
 	clients    map[ClientId]*clientContext
 	callback   ServerRecvDataCallback
@@ -275,7 +220,7 @@ func newServerImplWin() Server {
 
 func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback) common.BoolResult {
 	common.LogInfo("IPC server starting", "server_name", serverName)
-	if s.running {
+	if s.running.Load() {
 		return common.ErrBool("server already running")
 	}
 	s.callback = callback
@@ -290,7 +235,7 @@ func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback
 		return common.ErrBool("listen failed: " + err.Error())
 	}
 	s.listener = listener
-	s.running = true
+	s.running.Store(true)
 
 	go s.acceptLoop()
 	return common.OkBool(true)
@@ -298,19 +243,16 @@ func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback
 
 func (s *serverImplWin) acceptLoop() {
 	var clientIdCounter atomic.Uint64
-	for s.running {
+	for s.running.Load() {
 		conn, err := s.listener.Accept()
 		if err != nil {
-			if !s.running {
+			if !s.running.Load() {
 				return
 			}
 			continue
 		}
 		ctx := &clientContext{
-			conn:   conn,
-			state:  stateWaitHello,
-			ecdh:   NewECDHKeyExchange(),
-			cipher: NewAESGCMCipher(),
+			conn: conn,
 		}
 		cid := ClientId(clientIdCounter.Add(1))
 		s.mu.Lock()
@@ -323,7 +265,10 @@ func (s *serverImplWin) acceptLoop() {
 func (s *serverImplWin) handleClient(cid ClientId, ctx *clientContext) {
 	common.LogInfo("Server handling client connection", "client_id", cid)
 	chunk := make([]byte, 131072)
-	for s.running {
+	for s.running.Load() {
+		if ctx.conn != nil {
+			ctx.conn.SetReadDeadline(time.Now().Add(serverReadTimeout))
+		}
 		n, err := ctx.conn.Read(chunk)
 		if err != nil {
 			common.LogError("Server read error for client", "client_id", cid, "error", err)
@@ -347,59 +292,38 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 			break
 		}
 		common.LogDebug("Server processing frame", "client_id", cid, "frame_type", fmt.Sprintf("0x%02X", frameType), "payload_len", len(payload))
-		if ctx.state == stateWaitHello {
-			if frameType != MsgHandshakeInit {
-				common.LogError("Server received non-HandshakeInit frame during handshake", "frame_type", fmt.Sprintf("0x%02X", frameType))
-				return false
-			}
-			common.LogDebug("Server processing HandshakeInit from client", "client_id", cid, "pubkey_len", len(payload))
-
-			if genResult := ctx.ecdh.GenerateKey(); !genResult.HasValue() {
-				common.LogError("Server ECDH key generation failed", "error", genResult.Err)
-				return false
-			}
-			common.LogDebug("Server ECDH key generated")
-
-			secretResult := ctx.ecdh.ComputeSharedSecret(payload)
-			if !secretResult.HasValue() {
-				common.LogError("Server compute shared secret failed", "error", secretResult.Err)
-				return false
-			}
-			common.LogDebug("Server computed shared secret", "len", len(secretResult.Value))
-
-			if initResult := ctx.cipher.Init(secretResult.Value); !initResult.HasValue() {
-				common.LogError("Server cipher init failed", "error", initResult.Err)
-				return false
-			}
-			common.LogDebug("Server cipher initialized")
-
-			pubDerResult := ctx.ecdh.GetPublicKeyDer()
-			if !pubDerResult.HasValue() {
-				common.LogError("Server get public key DER failed", "error", pubDerResult.Err)
-				return false
-			}
-			common.LogDebug("Server public key DER obtained", "len", len(pubDerResult.Value))
-
-			resp := BuildFrame(MsgHandshakeResp, pubDerResult.Value)
-			common.LogDebug("Server sending handshake response frame", "len", len(resp))
-
-			ctx.writeMu.Lock()
-			ctx.pendingWrite = append(ctx.pendingWrite, resp...)
-			ctx.writeMu.Unlock()
-			if !s.writeToClient(ctx) {
-				common.LogError("Server failed to write handshake response")
-				return false
-			}
-			common.LogInfo("Server handshake completed for client", "client_id", cid)
-			ctx.state = stateEstablished
-		} else if ctx.state == stateEstablished {
-			if frameType == MsgData {
-				decryptResult := ctx.cipher.Decrypt(payload)
-				if !decryptResult.HasValue() {
-					common.LogError("Server decrypt failed", "error", decryptResult.Err)
-					return false
+		if frameType == MsgData {
+			dataCopy := payload
+			callback := s.callback
+			tp := component.GetCoroutinePoolInstance()
+			tp.Enqueue(func() {
+				cbSend := func(id ClientId, buf []byte) bool {
+					result := s.SendToClient(id, buf)
+					return result.HasValue()
 				}
-				dataCopy := decryptResult.Value
+				if callback != nil {
+					callback(cid, dataCopy, cbSend)
+				}
+			})
+		} else if frameType == MsgDataFragment {
+			totalSize, offset, chunkData, parseErr := ParseFragmentHeader(payload)
+			if parseErr != nil {
+				common.LogError("Server fragment parse failed", "error", parseErr)
+				return false
+			}
+			if offset == 0 {
+				ctx.reassembly.Reset(totalSize)
+			}
+			if !ctx.reassembly.ValidateOffset(offset, len(chunkData)) {
+				common.LogError("Server fragment offset out of order or overflow", "offset", offset, "chunk_size", len(chunkData), "total", ctx.reassembly.Total)
+				return false
+			}
+			copy(ctx.reassembly.Buffer[offset:], chunkData)
+			ctx.reassembly.Received += uint32(len(chunkData))
+			ctx.reassembly.NextOffset = offset + uint32(len(chunkData))
+			if ctx.reassembly.IsComplete() {
+				dataCopy := ctx.reassembly.Buffer
+				ctx.reassembly = FragmentReassembly{}
 				callback := s.callback
 				tp := component.GetCoroutinePoolInstance()
 				tp.Enqueue(func() {
@@ -411,54 +335,18 @@ func (s *serverImplWin) processFrames(cid ClientId, ctx *clientContext) bool {
 						callback(cid, dataCopy, cbSend)
 					}
 				})
-			} else if frameType == MsgDataFragment {
-				totalSize, offset, encryptedChunk, parseErr := ParseFragmentHeader(payload)
-				if parseErr != nil {
-					common.LogError("Server fragment parse failed", "error", parseErr)
-					return false
-				}
-				decryptResult := ctx.cipher.Decrypt(encryptedChunk)
-				if !decryptResult.HasValue() {
-					common.LogError("Server fragment decrypt failed", "error", decryptResult.Err)
-					return false
-				}
-				if offset == 0 {
-					ctx.reassembly.Reset(totalSize)
-				}
-				if !ctx.reassembly.ValidateOffset(offset, len(decryptResult.Value)) {
-					common.LogError("Server fragment offset out of order or overflow", "offset", offset, "chunk_size", len(decryptResult.Value), "total", ctx.reassembly.Total)
-					return false
-				}
-				copy(ctx.reassembly.Buffer[offset:], decryptResult.Value)
-				ctx.reassembly.Received += uint32(len(decryptResult.Value))
-				ctx.reassembly.NextOffset = offset + uint32(len(decryptResult.Value))
-				if ctx.reassembly.IsComplete() {
-					dataCopy := ctx.reassembly.Buffer
-					ctx.reassembly = FragmentReassembly{}
-					callback := s.callback
-					tp := component.GetCoroutinePoolInstance()
-					tp.Enqueue(func() {
-						cbSend := func(id ClientId, buf []byte) bool {
-							result := s.SendToClient(id, buf)
-							return result.HasValue()
-						}
-						if callback != nil {
-							callback(cid, dataCopy, cbSend)
-						}
-					})
-				}
-			} else {
-				common.LogError("Server received unknown frame type", "frame_type", fmt.Sprintf("0x%02X", frameType))
-				return false
 			}
+		} else {
+			common.LogError("Server received unknown frame type", "frame_type", fmt.Sprintf("0x%02X", frameType))
+			return false
 		}
 	}
 	return true
 }
 
-func (s *serverImplWin) writeToClient(ctx *clientContext) bool {
-	ctx.writeMu.Lock()
-	defer ctx.writeMu.Unlock()
+// writeToClientLocked 在**已持有 ctx.writeMu** 的前提下写出 pendingWrite。
+// 供 SendToClient 多分片路径在整段持锁的临界区内调用，避免分片交错。
+func (s *serverImplWin) writeToClientLocked(ctx *clientContext) bool {
 	for len(ctx.pendingWrite) > 0 {
 		n, err := ctx.conn.Write(ctx.pendingWrite)
 		if err != nil {
@@ -467,6 +355,13 @@ func (s *serverImplWin) writeToClient(ctx *clientContext) bool {
 		ctx.pendingWrite = ctx.pendingWrite[n:]
 	}
 	return true
+}
+
+// writeToClient 自带 writeMu 加锁，适用于小消息路径等短临界区场景。
+func (s *serverImplWin) writeToClient(ctx *clientContext) bool {
+	ctx.writeMu.Lock()
+	defer ctx.writeMu.Unlock()
+	return s.writeToClientLocked(ctx)
 }
 
 func (s *serverImplWin) closeClient(cid ClientId) {
@@ -482,10 +377,10 @@ func (s *serverImplWin) closeClient(cid ClientId) {
 }
 
 func (s *serverImplWin) Stop() {
-	if !s.running {
+	if !s.running.Load() {
 		return
 	}
-	s.running = false
+	s.running.Store(false)
 	if s.listener != nil {
 		s.listener.Close()
 	}
@@ -506,11 +401,7 @@ func (s *serverImplWin) SendToClient(id ClientId, data []byte) common.BoolResult
 	}
 
 	if uint32(len(data)) <= FragmentChunkSize {
-		encryptResult := ctx.cipher.Encrypt(data)
-		if !encryptResult.HasValue() {
-			return common.ErrBool("encrypt failed: " + encryptResult.Err)
-		}
-		frame := BuildFrame(MsgData, encryptResult.Value)
+		frame := BuildFrame(MsgData, data)
 		ctx.writeMu.Lock()
 		ctx.pendingWrite = append(ctx.pendingWrite, frame...)
 		ctx.writeMu.Unlock()
@@ -522,25 +413,23 @@ func (s *serverImplWin) SendToClient(id ClientId, data []byte) common.BoolResult
 
 	remaining := len(data)
 	offset := 0
+	// 多分片路径：整段 append + 写出在同一个 writeMu 临界区内完成，
+	// 避免与其他 SendToClient 调用交错导致同一 client 的分片流损坏（与 Linux 版本对齐）。
+	ctx.writeMu.Lock()
+	defer ctx.writeMu.Unlock()
 	for remaining > 0 {
 		chunkSize := int(FragmentChunkSize)
 		if remaining < chunkSize {
 			chunkSize = remaining
 		}
 		chunk := data[offset : offset+chunkSize]
-		encryptResult := ctx.cipher.Encrypt(chunk)
-		if !encryptResult.HasValue() {
-			return common.ErrBool("encrypt fragment failed: " + encryptResult.Err)
-		}
-		fragmentPayload := BuildFragmentPayload(uint32(len(data)), uint32(offset), encryptResult.Value)
+		fragmentPayload := BuildFragmentPayload(uint32(len(data)), uint32(offset), chunk)
 		frame := BuildFrame(MsgDataFragment, fragmentPayload)
-		ctx.writeMu.Lock()
 		ctx.pendingWrite = append(ctx.pendingWrite, frame...)
-		ctx.writeMu.Unlock()
 		offset += chunkSize
 		remaining -= chunkSize
 	}
-	if !s.writeToClient(ctx) {
+	if !s.writeToClientLocked(ctx) {
 		return common.ErrBool("write fragments to client failed")
 	}
 	return common.OkBool(true)

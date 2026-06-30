@@ -61,14 +61,14 @@ All multi-byte integers are **little-endian**.
 | JSON   | "json"       | 1          |
 | BINARY | "binary"     | 2          |
 
-## 5. Frame Format (Encryption Layer)
+## 5. Frame Format (Transport Layer)
 
 ```
 Offset  Size           Field       Type        Description
 ------  -------------  ----------  ----------  -------------------------------------------
 0x00    4              total_len   uint32_le   1 + len(payload)
-0x04    1              frame_type  uint8       HandshakeInit(0x01) / HandshakeResp(0x02) / Data(0x03)
-0x05    total_len - 1  payload     byte[]      Frame payload
+0x04    1              frame_type  uint8       Data(0x03) / DataFragment(0x04)
+0x05    total_len - 1  payload     byte[]      Frame payload (plaintext)
 ------  -------------  ----------  ----------  -------------------------------------------
 ```
 
@@ -76,34 +76,26 @@ Max frame payload: **16 MiB** (16777216 bytes)
 
 ### Frame Types
 
-| Name            | Value | Description                         |
-| --------------- | ----- | ----------------------------------- |
-| HANDSHAKE_INIT  | 0x01  | Client ECDH public key (SPKI DER)   |
-| HANDSHAKE_RESP  | 0x02  | Server ECDH public key (SPKI DER)   |
-| DATA            | 0x03  | AES-256-GCM encrypted data          |
+| Name          | Value | Description                                           |
+| ------------- | ----- | ----------------------------------------------------- |
+| DATA          | 0x03  | Plaintext data                                        |
+| DATA_FRAGMENT | 0x04  | Fragmented data chunk (for messages > 64 KiB)         |
 
-## 6. Cryptographic Parameters
+### Fragment Format
 
-| Parameter              | Value                                    |
-| ---------------------- | ---------------------------------------- |
-| Key Exchange           | ECDH over P-256 (prime256v1 / secp256r1) |
-| Key Derivation         | HKDF-SHA256                              |
-| HKDF Salt              | `tyke-v1-hkdf-salt` (ASCII, 17 bytes)   |
-| HKDF Info              | `tyke-v1-aes256-key` (ASCII, 17 bytes)  |
-| Derived Key Length     | 32 bytes (AES-256)                       |
-| Encryption             | AES-256-GCM                              |
-| IV Length              | 12 bytes                                 |
-| Authentication Tag     | 16 bytes                                 |
-| IV Structure           | [4B random prefix][8B big-endian counter]|
-| Public Key Encoding    | SPKI DER (X.509 SubjectPublicKeyInfo)    |
-
-### Encrypted Data Format
+Messages larger than 64 KiB are automatically split into `DATA_FRAGMENT` frames. Each fragment frame's payload is structured as:
 
 ```
-[IV 12B][Ciphertext NB][Auth Tag 16B]
+[4B total_size (LE)][4B offset (LE)][chunk]
 ```
 
-## 7. Metadata JSON Fields
+- `total_size`: Total size of the original message (bytes)
+- `offset`: Byte offset of this chunk within the original message
+- `chunk`: The fragment data bytes
+
+The receiver reassembles all fragments into the original plaintext message before dispatching.
+
+## 6. Metadata JSON Fields
 
 | Key           | Type   | Description                          |
 | ------------- | ------ | ------------------------------------ |
@@ -119,19 +111,17 @@ Max frame payload: **16 MiB** (16777216 bytes)
 
 Additional keys are stored in a `headers` map and passed through as-is.
 
-## 8. IPC Transport
+## 7. IPC Transport
 
 ### Windows
 - **Transport**: Named Pipes (`\\.\pipe\<server_name>`)
 - **I/O Model**: Overlapped I/O (IOCP)
-- **Handshake Timeout**: 5000ms default
 
 ### Linux
 - **Transport**: Unix Domain Sockets (abstract namespace `@tyke_<server_name>`)
 - **I/O Model**: epoll
-- **Handshake Timeout**: 5000ms default
 
-## 9. Default Constants
+## 8. Default Constants
 
 | Constant                    | Value    |
 | --------------------------- | -------- |
@@ -147,6 +137,7 @@ Additional keys are stored in a `headers` map and passed through as-is.
 
 ## Change Log
 
-| Version | Date       | Changes                          |
-| ------- | ---------- | -------------------------------- |
-| v1      | 2026-04-26 | Initial protocol specification   |
+| Version | Date       | Changes                                                    |
+| ------- | ---------- | ---------------------------------------------------------- |
+| v1      | 2026-04-26 | Initial protocol specification                             |
+| v1.1    | 2026-06-29 | Migrated to plaintext data transport; data frames carry raw payload |

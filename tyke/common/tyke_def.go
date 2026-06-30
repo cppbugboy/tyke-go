@@ -7,9 +7,6 @@ const (
 	// ProtocolHeaderSize 是协议头的固定字节大小。
 	ProtocolHeaderSize = 28
 
-	AesGcmIvLen          = 12
-	AesGcmTagLen         = 16
-	Aes256KeyLen         = 32
 	DefaultStubTimeoutMs = 30000
 	HttpStatusNotFound   = 404
 	HttpStatusTimeout    = 408

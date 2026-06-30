@@ -224,15 +224,15 @@ func main() {
 
 	time.Sleep(500 * time.Millisecond)
 
-	//demoSyncRequest()
+	demoSyncRequest()
 
 	time.Sleep(200 * time.Millisecond)
 
-	//demoSendAsync()
+	demoSendAsync()
 
 	time.Sleep(200 * time.Millisecond)
 
-	//demoSendAsyncWithFunc()
+	demoSendAsyncWithFunc()
 
 	time.Sleep(200 * time.Millisecond)
 

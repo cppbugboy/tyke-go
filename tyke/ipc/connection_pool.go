@@ -96,6 +96,11 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 			return conn, nil
 		}
 		atomic.AddInt32(&p.active, -1)
+		// 通知一个等待者重试，避免其只能等到 AcquireTimeout 超时
+		select {
+		case p.available <- struct{}{}:
+		default:
+		}
 		return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
 	}
 
@@ -141,6 +146,11 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 				return conn, nil
 			}
 			atomic.AddInt32(&p.active, -1)
+			// 创建失败，通知其他等待者重试
+			select {
+			case p.available <- struct{}{}:
+			default:
+			}
 			return nil, fmt.Errorf("failed to create connection for pool, server=%s", p.serverUuid)
 		}
 
@@ -163,20 +173,11 @@ func (p *ConnectionPool) Release(conn *IPCConnection, shouldReconnect bool) {
 	}
 
 	if shouldReconnect || !conn.IsValid() {
-		common.LogWarn("Releasing broken connection, reconnecting", "server", p.serverUuid)
+		common.LogWarn("Releasing broken connection", "server", p.serverUuid)
 		conn.Close()
-
-		total := len(p.idle) + int(atomic.LoadInt32(&p.active))
-		if total-1 < p.config.MinIdleConnections {
-			p.mu.Unlock()
-			if newConn := p.createConnection(); newConn != nil {
-				p.mu.Lock()
-				p.idle = append(p.idle, newConn)
-				common.LogDebug("Created replacement connection", "server", p.serverUuid)
-			} else {
-				p.mu.Lock()
-			}
-		}
+		// 不在此同步创建补偿连接：原实现锁内 Unlock→createConnection→Lock 会引发
+		// active 计数误判与 defer Unlock 在 panic 时解锁未锁定 mutex 的风险。
+		// MinIdleConnections 仅作为 cleanupLoop 的清理下限，不主动预热连接。
 	} else {
 		conn.UpdateLastUsedTime()
 		p.idle = append(p.idle, conn)
@@ -223,7 +224,8 @@ func (p *ConnectionPool) Stop() {
 		conn.Close()
 	}
 	p.idle = nil
-	atomic.StoreInt32(&p.active, 0)
+	// 不重置 active：活跃连接仍可能被调用方持有，由其 Release 时自然递减。
+	// 强置为 0 会导致后续 Release 让 active 变为负数。
 
 	common.LogInfo("Connection pool stopped", "server_uuid", p.serverUuid)
 }

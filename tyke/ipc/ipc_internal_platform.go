@@ -4,7 +4,7 @@ import "tyke-go/common"
 
 type ClientConnection interface {
 	Connect(serverName string, timeoutMs uint32) common.BoolResult
-	WriteEncrypted(data []byte, timeoutMs uint32) common.BoolResult
+	Write(data []byte, timeoutMs uint32) common.BoolResult
 	ReadLoop(callback ClientRecvDataCallback, timeoutMs uint32) common.BoolResult
 	Close()
 	IsValid() bool
