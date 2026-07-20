@@ -81,18 +81,22 @@ func IPCClientSend(serverName string, request []byte, callback ClientRecvDataCal
 		return common.ErrBool("send: " + err.Error())
 	}
 
+	// Use defer to guarantee connection is always released, even on panic or unexpected errors.
+	shouldReconnect := true
+	defer func() {
+		pool.Release(conn, shouldReconnect)
+	}()
+
 	if writeResult := conn.Write(request, tm); !writeResult.HasValue() {
 		common.LogError("IPC client sending data write failed", "error", writeResult.Err)
-		pool.Release(conn, true)
 		return common.ErrBool("send: " + writeResult.Err)
 	}
 	if readResult := conn.ReadLoop(callback, tm); !readResult.HasValue() {
 		common.LogError("IPC client sending data read failed", "error", readResult.Err)
-		pool.Release(conn, true)
 		return common.ErrBool("send: " + readResult.Err)
 	}
 
-	pool.Release(conn, false)
+	shouldReconnect = false // success — return healthy connection to pool
 	common.LogDebug("IPC client sending data completed successfully")
 	return common.OkBool(true)
 }

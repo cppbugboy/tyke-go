@@ -66,6 +66,14 @@ type TimerId uint64
 const InvalidTimerId TimerId = 0
 
 // TimerTask 表示一个已调度的定时器，可选支持重复行为。
+//
+// TimerTask 由 AddTaskAt/AddRepeatedTask/CancelTask 使用，通过独立 goroutine +
+// time.NewTimer 实现，不经过分层时间轮调度。
+//
+// 注意：TimerTask 和 TaskEntry 是两个独立的追踪系统，分别用于不同的 API：
+//   - TaskEntry（基于槽位数组）：AddTask / RemoveTask（分层时间轮 O(1) 调度）
+//   - TimerTask（基于独立 goroutine）：AddTaskAt / AddRepeatedTask / CancelTask
+// 两个系统的任务无法互查或互操作。未来的版本将统一为单一调度机制。
 type TimerTask struct {
 	Id          TimerId   // 唯一标识符
 	Callback    func()    // 到期时调用的函数

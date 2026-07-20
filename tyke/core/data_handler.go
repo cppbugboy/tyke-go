@@ -74,6 +74,10 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 		if DecodeResponse(dataVec, response, &used) {
 			common.LogDebug("Processing async response", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 			ResponseHandler(response)
+			// Release for synchronous dispatch and func callback paths; future consumers release their own.
+			if response.GetMessageType() != common.MessageTypeResponseAsyncFuture {
+				ReleaseResponse(response)
+			}
 		} else {
 			ReleaseResponse(response)
 			if used == 0 {

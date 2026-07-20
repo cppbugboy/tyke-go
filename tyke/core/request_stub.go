@@ -85,6 +85,7 @@ func RequestStubExecFunc(response *Response) {
 	if found {
 		component.GetTimingWheel().RemoveTask(response.GetMsgUUID())
 		common.LogDebug("Executing callback for response", "uuid", response.GetMsgUUID())
+		defer ReleaseResponse(response)
 		extractedFn(response)
 	}
 }
@@ -115,12 +116,25 @@ func RequestStubCleanupExpiredFuture(uuid string) {
 }
 
 func RequestStubCleanupExpiredFunc(uuid string) {
+	var extractedFn func(*Response)
+	found := false
+
 	uuidFuncMapMu.Lock()
-	if _, ok := uuidFuncMap[uuid]; ok {
+	if entry, ok := uuidFuncMap[uuid]; ok {
+		extractedFn = entry.fn
 		delete(uuidFuncMap, uuid)
-		common.LogWarn("Expired func cleaned up", "uuid", uuid)
+		found = true
+		common.LogWarn("Expired func cleaned up, notifying with timeout", "uuid", uuid)
 	}
 	uuidFuncMapMu.Unlock()
+
+	if found {
+		timeoutResp := AcquireResponse()
+		timeoutResp.SetMsgUUID(uuid)
+		timeoutResp.SetResult(int(common.StatusTimeout), "func callback timeout")
+		defer ReleaseResponse(timeoutResp)
+		extractedFn(timeoutResp)
+	}
 }
 
 func RequestStubCleanupExpiredFutures() {

@@ -658,23 +658,23 @@ func (cp *CoroutinePool) Stop(waitForTasks bool) {
 
 	close(cp.stopCh)
 
-	cp.queueMu.Lock()
-	cp.queueCond.Broadcast()
-	cp.queueMu.Unlock()
-
 	if waitForTasks {
 		for cp.queueSize.Load() > 0 {
 			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
-	cp.wg.Wait()
-
+	// Set queues to nil BEFORE broadcasting so workers see nil queues and exit immediately.
+	// Previously broadcast happened before nil-assignment, creating a window where workers
+	// could wake, see non-nil queues, and execute tasks after Stop was called.
 	cp.queueMu.Lock()
 	cp.highQueue = nil
 	cp.mediumQueue = nil
 	cp.lowQueue = nil
+	cp.queueCond.Broadcast()
 	cp.queueMu.Unlock()
+
+	cp.wg.Wait()
 
 	cp.state.Store(int32(StateStopped))
 

@@ -1,5 +1,11 @@
 //go:build windows
 
+// Package ipc Windows 平台实现（命名管道 via go-winio）。
+//
+// TODO(N-M6): 本文件与 ipc_platform_linux.go 有约 90% 的代码重复（Write、ReadLoop、
+// processFrames、writeToClientLocked、closeClient、Stop、SendToClient 等函数逻辑一致）。
+// 应将共享逻辑提取到 ipc_platform_common.go，平台特定文件仅保留连接建立/拆除和 I/O 原语。
+
 package ipc
 
 import (

@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// JsonValue is a type constraint for valid JSON primitive value types.
 type JsonValue interface {
 	bool | int | int64 | float64 | string
 }
@@ -13,8 +14,15 @@ type JsonValueHolder struct {
 	value any
 }
 
-func NewJsonValue(v any) JsonValueHolder {
+// NewJsonValue creates a JsonValueHolder from a JSON-primitive value.
+// Use NewJsonNilValue for nil values since nil is not in the JsonValue constraint.
+func NewJsonValue[T JsonValue](v T) JsonValueHolder {
 	return JsonValueHolder{value: v}
+}
+
+// NewJsonNilValue creates a JsonValueHolder holding a nil value.
+func NewJsonNilValue() JsonValueHolder {
+	return JsonValueHolder{value: nil}
 }
 
 func (j JsonValueHolder) Value() any {
@@ -71,7 +79,7 @@ func JsonToVariant(data json.RawMessage) JsonValueHolder {
 	}
 	switch v := raw.(type) {
 	case nil:
-		return NewJsonValue(nil)
+		return NewJsonNilValue()
 	case bool:
 		return NewJsonValue(v)
 	case float64:
