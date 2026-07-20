@@ -1,3 +1,6 @@
+// Package controllers 提供示例响应路由处理器。
+//
+// 本文件注册响应处理器，用于处理 ResponseRouter 在异步请求完成时分发的异步响应。
 package controllers
 
 import (
@@ -8,12 +11,14 @@ import (
 	"tyke-go/core"
 )
 
+// init 在包被导入时自动注册响应路由。
 func init() {
 	ExampleResponseRegisterMethod()
 }
 
+// ExampleResponseRegisterMethod 在全局 ResponseRouter 上注册响应路由处理器。
 func ExampleResponseRegisterMethod() {
-	fmt.Println("注册响应路由处理器...")
+	fmt.Println("Registering response route handlers...")
 
 	router := core.GetResponseRouter()
 	root := router.GetRoot()
@@ -22,9 +27,10 @@ func ExampleResponseRegisterMethod() {
 	root.AddSubGroup("/api/async").AddRouteHandler("/process", HandleAsyncCallback)
 	root.AddSubGroup("/api/async").AddRouteHandler("/notification", HandleAsyncNotification)
 
-	fmt.Println("✓ 响应路由处理器注册完成")
+	fmt.Println("Response route handlers registered")
 }
 
+// logResponse 将格式化的响应摘要打印到标准输出。
 func logResponse(response *core.Response, handlerName string) {
 	now := time.Now()
 	status, reason := response.GetResult()
@@ -49,18 +55,20 @@ func logResponse(response *core.Response, handlerName string) {
 	fmt.Printf("========================================\n\n")
 }
 
+// HandleAsyncCallback 处理异步回调响应。
 func HandleAsyncCallback(response *core.Response) {
 	logResponse(response, "HandleAsyncCallback")
 
-	fmt.Println("处理异步回调响应...")
-	fmt.Println("执行业务逻辑...")
-	fmt.Println("✓ 异步回调处理完成")
+	fmt.Println("Processing async callback response...")
+	fmt.Println("Executing business logic...")
+	fmt.Println("Async callback processing complete")
 }
 
+// HandleAsyncNotification 处理异步通知响应。
 func HandleAsyncNotification(response *core.Response) {
 	logResponse(response, "HandleAsyncNotification")
 
-	fmt.Println("处理异步通知响应...")
-	fmt.Println("更新本地状态...")
-	fmt.Println("✓ 异步通知处理完成")
+	fmt.Println("Processing async notification response...")
+	fmt.Println("Updating local state...")
+	fmt.Println("Async notification processing complete")
 }

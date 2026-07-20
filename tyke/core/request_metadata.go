@@ -1,3 +1,7 @@
+// Package core implements the Tyke framework kernel.
+//
+// This file defines RequestMetadata, which extends MetadataBase with JSON
+// serialization that separates known fields from custom header entries.
 package core
 
 import (
@@ -6,10 +10,12 @@ import (
 	"tyke-go/common"
 )
 
+// RequestMetadata holds the metadata fields for an outgoing request.
 type RequestMetadata struct {
 	MetadataBase
 }
 
+// NewRequestMetadata creates a new RequestMetadata with an initialized MetadataBase.
 func NewRequestMetadata() RequestMetadata {
 	return RequestMetadata{MetadataBase: NewMetadataBase()}
 }
@@ -55,6 +61,8 @@ func (r *RequestMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// RequestMetadataKnownKeys lists the JSON keys that are reserved for known fields.
+// Any keys not in this set are treated as custom header entries.
 var RequestMetadataKnownKeys = map[string]bool{
 	"module": true, "async_uuid": true, "msg_uuid": true,
 	"route": true, "content_type": true, "timestamp": true, "timeout": true,

@@ -8,7 +8,9 @@ import (
 	"tyke-go/ipc"
 )
 
-// Request 表示一个 IPC 请求对象，支持同步和异步发送。
+// Request 表示一个 IPC 请求，支持同步和异步
+// 发送模式（发后即忘、回调、Future）。实例从对象池中获取
+// 并归还以降低内存分配。
 type Request struct {
 	protocolHeader common.ProtocolHeader
 	metadata       RequestMetadata
@@ -29,7 +31,7 @@ func init() {
 	})
 }
 
-// AcquireRequest 从对象池获取一个 Request 实例。
+// AcquireRequest 从对象池中获取一个 Request 并设置其模块。
 func AcquireRequest() *Request {
 	common.LogDebug("Acquiring request from pool")
 	request := requestPool.Acquire()
@@ -37,7 +39,7 @@ func AcquireRequest() *Request {
 	return request
 }
 
-// ReleaseRequest 将 Request 实例归还到对象池。
+// ReleaseRequest 重置 Request 并将其归还到对象池。
 func ReleaseRequest(req *Request) {
 	if req != nil {
 		common.LogDebug("Releasing request object to pool", "msg_uuid", req.GetMsgUUID())
@@ -46,6 +48,7 @@ func ReleaseRequest(req *Request) {
 	}
 }
 
+// Reset 将 Request 重置为零值状态以供对象池复用。
 func (r *Request) Reset() {
 	r.protocolHeader = common.ProtocolHeader{Magic: common.ProtocolMagic}
 	r.metadata = NewRequestMetadata()
@@ -127,6 +130,8 @@ func (r *Request) GetContext() component.Context {
 	return r.context
 }
 
+// Send 向指定的 UUID 发送同步请求，并阻塞直到收到响应
+// 或超时到期。解码后的响应写入提供的 Response 指针中。
 func (r *Request) Send(sendUuid string, response *Response, timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
@@ -158,10 +163,15 @@ func (r *Request) Send(sendUuid string, response *Response, timeoutMs ...uint32)
 	return common.OkBool(true)
 }
 
+// SendAsync 发送一个发后即忘的异步请求。响应到达时
+// 由服务器的 ResponseRouter 进行分发。
 func (r *Request) SendAsync(sendUuid string, timeoutMs ...uint32) common.BoolResult {
 	return r.encodeAndSend(sendUuid, common.MessageTypeRequestAsync, timeoutMs...)
 }
 
+// SendAsyncWithFunc 发送一个异步请求并注册一个回调函数，
+// 该回调在响应到达时被调用。回调在请求存根表中跟踪，
+// 并在过期时清理。
 func (r *Request) SendAsyncWithFunc(sendUuid string, fn func(*Response), timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
@@ -176,6 +186,9 @@ func (r *Request) SendAsyncWithFunc(sendUuid string, fn func(*Response), timeout
 	return result
 }
 
+// SendAsyncWithFuture 发送一个异步请求并返回一个 ResponseFuture，
+// 可用于阻塞直到响应到达。Future 在请求存根表中跟踪，
+// 如果服务器未及时回复，将收到一个超时响应。
 func (r *Request) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) (ResponseFuture, error) {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {
@@ -193,6 +206,8 @@ func (r *Request) SendAsyncWithFuture(sendUuid string, timeoutMs ...uint32) (Res
 	return future, nil
 }
 
+// encodeAndSend 将请求编码为传输格式并通过 IPC 发送。
+// 被所有 send 方法内部使用。
 func (r *Request) encodeAndSend(sendUuid string, msgType common.MessageType, timeoutMs ...uint32) common.BoolResult {
 	tm := uint32(common.DefaultTimeoutMs)
 	if len(timeoutMs) > 0 {

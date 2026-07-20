@@ -16,10 +16,12 @@ const (
 	MaxMessageSize uint32 = 64 * 1024 * 1024
 )
 
+// encodeU32 以小端序将 uint32 值追加到字节切片中。
 func encodeU32(val uint32, out *[]byte) {
 	*out = append(*out, byte(val&0xFF), byte((val>>8)&0xFF), byte((val>>16)&0xFF), byte((val>>24)&0xFF))
 }
 
+// decodeU32 以小端序从字节切片中读取 uint32。
 func decodeU32(data []byte) uint32 {
 	return uint32(data[0]) | uint32(data[1])<<8 | uint32(data[2])<<16 | uint32(data[3])<<24
 }
@@ -66,6 +68,8 @@ type FragmentReassembly struct {
 	NextOffset uint32
 }
 
+// Reset 为新的消息初始化（或重新初始化）重组缓冲区，
+// 设置给定的预期总大小。
 func (r *FragmentReassembly) Reset(totalSize uint32) {
 	r.Buffer = make([]byte, totalSize)
 	r.Total = totalSize
@@ -73,10 +77,14 @@ func (r *FragmentReassembly) Reset(totalSize uint32) {
 	r.NextOffset = 0
 }
 
+// IsComplete 当所有预期的字节都已收到时返回 true。
 func (r *FragmentReassembly) IsComplete() bool {
 	return r.Received == r.Total && r.Total > 0
 }
 
+// ValidateOffset 检查分片偏移量是否与预期的下一个偏移量匹配，
+// 以及 offset+chunkLen 是否未超过总消息大小，
+// 防止整数溢出。
 func (r *FragmentReassembly) ValidateOffset(offset uint32, chunkLen int) bool {
 	if offset != r.NextOffset {
 		return false

@@ -1,3 +1,8 @@
+// Package core implements the Tyke framework kernel.
+//
+// This file provides the Tyke logging system: a singleton LogConfig that wraps
+// slog with file rotation via lumberjack. It supports console + file output,
+// configurable log levels, and log file size/count management.
 package core
 
 import (
@@ -10,6 +15,7 @@ import (
 	"tyke-go/common"
 )
 
+// LogConfig manages the framework's logging configuration and lifecycle.
 type LogConfig struct {
 	logger           *slog.Logger
 	file             *os.File
@@ -22,6 +28,7 @@ var (
 	tykeLogOnce     sync.Once
 )
 
+// GetTykeLogInstance returns the singleton LogConfig instance.
 func GetTykeLogInstance() *LogConfig {
 	tykeLogOnce.Do(func() {
 		tykeLogInstance = &LogConfig{}
@@ -29,6 +36,8 @@ func GetTykeLogInstance() *LogConfig {
 	return tykeLogInstance
 }
 
+// Init initializes the logging system with file rotation support. If the logger is
+// already initialized, it only updates the log level. Returns an error on failure.
 func (t *LogConfig) Init(logPath string, logLevel string, fileSizeMb uint32, fileCount uint32) common.BoolResult {
 	if t.logger != nil {
 		t.SetLogLevel(logLevel)
@@ -69,10 +78,13 @@ func (t *LogConfig) Init(logPath string, logLevel string, fileSizeMb uint32, fil
 	return common.OkBool(true)
 }
 
+// IsInitialized returns true if the logger has been successfully initialized.
 func (t *LogConfig) IsInitialized() bool {
 	return t.logger != nil
 }
 
+// SetLogLevel changes the log level of the running logger. Accepted values are
+// "debug", "info", "warn", and "error". Unknown values default to "info".
 func (t *LogConfig) SetLogLevel(logLevel string) {
 	if t.logger == nil {
 		return
@@ -99,6 +111,8 @@ func (t *LogConfig) SetLogLevel(logLevel string) {
 	slog.SetDefault(t.logger)
 }
 
+// Stop gracefully shuts down the logging system, closing file handles and the
+// lumberjack rotator if active.
 func (t *LogConfig) Stop() {
 	if t.logger != nil {
 		common.LogInfo("Tyke log system shutting down")

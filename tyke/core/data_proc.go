@@ -1,3 +1,7 @@
+// Package core implements the Tyke framework kernel.
+//
+// This file provides wire-format encoding and decoding for Request and Response
+// objects using the Tyke protocol header + JSON metadata + raw content layout.
 package core
 
 import (
@@ -8,26 +12,33 @@ import (
 	"tyke-go/common"
 )
 
+// EncodeRequest serializes a Request into the Tyke wire format.
 func EncodeRequest(request *Request) ([]byte, error) {
 	common.LogInfo("Encoding request", "route", request.GetRoute())
 	return encodeRequest(request)
 }
 
+// DecodeRequest deserializes a byte slice into a Request. On success, dataSize is set
+// to the number of bytes consumed.
 func DecodeRequest(dataVec []byte, request *Request, dataSize *uint32) bool {
 	common.LogInfo("Decoding request", "size", len(dataVec))
 	return decode(dataVec, request, dataSize)
 }
 
+// EncodeResponse serializes a Response into the Tyke wire format.
 func EncodeResponse(response *Response) ([]byte, error) {
 	common.LogInfo("Encoding response", "route", response.GetRoute())
 	return encodeResponse(response)
 }
 
+// DecodeResponse deserializes a byte slice into a Response. On success, dataSize is set
+// to the number of bytes consumed.
 func DecodeResponse(dataVec []byte, response *Response, dataSize *uint32) bool {
 	common.LogInfo("Decoding response", "size", len(dataVec))
 	return decode(dataVec, response, dataSize)
 }
 
+// encodeRequest marshals request metadata to JSON and delegates to encodeCommon.
 func encodeRequest(request *Request) ([]byte, error) {
 	metadataBytes, err := json.Marshal(&request.metadata)
 	if err != nil {
@@ -36,6 +47,7 @@ func encodeRequest(request *Request) ([]byte, error) {
 	return encodeCommon(&request.protocolHeader, string(metadataBytes), request.content)
 }
 
+// encodeResponse marshals response metadata to JSON and delegates to encodeCommon.
 func encodeResponse(response *Response) ([]byte, error) {
 	metadataBytes, err := json.Marshal(&response.metadata)
 	if err != nil {
@@ -44,6 +56,8 @@ func encodeResponse(response *Response) ([]byte, error) {
 	return encodeCommon(&response.protocolHeader, string(metadataBytes), response.content)
 }
 
+// encodeCommon builds a complete Tyke protocol frame: [header][metadata bytes][content bytes].
+// All integer fields are little-endian.
 func encodeCommon(ph *common.ProtocolHeader, metadataString string, content []byte) ([]byte, error) {
 	metaBytes := []byte(metadataString)
 	contentBytes := content
@@ -97,6 +111,8 @@ func (r *Response) setProtocolHeader(ph common.ProtocolHeader) { r.protocolHeade
 func (r *Response) setMetadataFromJson(s string) error         { return r.metadata.FromJsonString(s) }
 func (r *Response) setContent(c []byte)                        { r.content = c }
 
+// decode parses a byte slice into a decodable message (Request or Response).
+// It validates magic, length fields, and handles integer overflow checks.
 func decode(dataVec []byte, msg decodable, dataSize *uint32) bool {
 	*dataSize = 0
 	vecSize := uint32(len(dataVec))
@@ -143,7 +159,7 @@ func decode(dataVec []byte, msg decodable, dataSize *uint32) bool {
 		return false
 	}
 
-	// 防御性检查：防止 metaLen + contLen 整数溢出
+	// Guard against integer overflow when adding metaLen and contLen.
 	if uint64(metaLen)+uint64(contLen) > uint64(^uint32(0)) {
 		common.LogError("Metadata + content length overflow", "meta", metaLen, "content", contLen)
 		return false

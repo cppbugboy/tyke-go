@@ -1,3 +1,7 @@
+// Package ipc provides an inter-process communication layer.
+//
+// This file defines the ConnectionPoolFactory singleton, which manages per-server-UUID
+// ConnectionPool instances. It provides lazy pool creation and graceful shutdown.
 package ipc
 
 import (
@@ -6,6 +10,8 @@ import (
 	"tyke-go/common"
 )
 
+// ConnectionPoolFactory manages a mapping from server UUIDs to ConnectionPool instances.
+// It is a singleton accessed via GetConnectionPoolFactory().
 type ConnectionPoolFactory struct {
 	pools sync.Map
 	mu    sync.Mutex
@@ -16,6 +22,7 @@ var (
 	factoryOnce     sync.Once
 )
 
+// GetConnectionPoolFactory returns the singleton ConnectionPoolFactory instance.
 func GetConnectionPoolFactory() *ConnectionPoolFactory {
 	factoryOnce.Do(func() {
 		factoryInstance = &ConnectionPoolFactory{}
@@ -24,6 +31,8 @@ func GetConnectionPoolFactory() *ConnectionPoolFactory {
 	return factoryInstance
 }
 
+// GetPool returns the ConnectionPool for the given server UUID, creating one if it
+// does not exist. An optional config can be passed for the first-time creation.
 func (f *ConnectionPoolFactory) GetPool(serverUuid string, config ...ConnectionPoolConfig) *ConnectionPool {
 	if val, ok := f.pools.Load(serverUuid); ok {
 		return val.(*ConnectionPool)
@@ -47,6 +56,7 @@ func (f *ConnectionPoolFactory) GetPool(serverUuid string, config ...ConnectionP
 	return pool
 }
 
+// RemovePool stops and removes the ConnectionPool for the given server UUID.
 func (f *ConnectionPoolFactory) RemovePool(serverUuid string) {
 	if val, loaded := f.pools.LoadAndDelete(serverUuid); loaded {
 		pool := val.(*ConnectionPool)
@@ -55,6 +65,7 @@ func (f *ConnectionPoolFactory) RemovePool(serverUuid string) {
 	}
 }
 
+// Shutdown stops all managed ConnectionPool instances and clears the factory.
 func (f *ConnectionPoolFactory) Shutdown() {
 	f.mu.Lock()
 	defer f.mu.Unlock()

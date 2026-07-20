@@ -1,3 +1,7 @@
+// Package core implements the Tyke framework kernel.
+//
+// This file defines MetadataBase, the common metadata fields shared by both
+// RequestMetadata and ResponseMetadata, along with JSON helper functions.
 package core
 
 import (
@@ -6,7 +10,9 @@ import (
 	"tyke-go/common"
 )
 
-// MetadataBase 提供请求/响应元数据的公共字段和方法。
+// MetadataBase provides the common metadata fields and accessor methods for
+// both request and response metadata: module, route, message UUID, content type,
+// async UUID, timestamp, timeout, and a custom header map.
 type MetadataBase struct {
 	Module      string                            `json:"module"`
 	AsyncUUID   string                            `json:"async_uuid"`
@@ -18,6 +24,7 @@ type MetadataBase struct {
 	HeadersMap  map[string]common.JsonValueHolder `json:"-"`
 }
 
+// NewMetadataBase creates a MetadataBase with an initialized headers map.
 func NewMetadataBase() MetadataBase {
 	return MetadataBase{HeadersMap: make(map[string]common.JsonValueHolder)}
 }
@@ -104,6 +111,7 @@ func (m *MetadataBase) GetMetadata(key string) (common.JsonValueHolder, bool) {
 	return v, ok
 }
 
+// jsonStringField extracts a string value from a raw JSON map, or returns "" if not found/unparseable.
 func jsonStringField(raw map[string]json.RawMessage, key string) string {
 	if v, ok := raw[key]; ok {
 		var s string
@@ -114,6 +122,7 @@ func jsonStringField(raw map[string]json.RawMessage, key string) string {
 	return ""
 }
 
+// jsonIntField extracts an int value from a raw JSON map, or returns 0 if not found/unparseable.
 func jsonIntField(raw map[string]json.RawMessage, key string) int {
 	if v, ok := raw[key]; ok {
 		var n int
@@ -124,6 +133,7 @@ func jsonIntField(raw map[string]json.RawMessage, key string) int {
 	return 0
 }
 
+// jsonUint64Field extracts a uint64 value from a raw JSON map, or returns 0 if not found/unparseable.
 func jsonUint64Field(raw map[string]json.RawMessage, key string) uint64 {
 	if v, ok := raw[key]; ok {
 		var n uint64

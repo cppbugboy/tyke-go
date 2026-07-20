@@ -9,6 +9,9 @@ import (
 	"tyke-go/ipc"
 )
 
+// DataCallback 是服务器接收 IPC 数据的入口点。它解析
+// 协议头，根据消息类型分发到相应的处理器，并
+// 返回已消费的字节数（如果需要更多数据则返回 nil）。
 func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDataHandler) *uint32 {
 	common.LogDebug("DataCallback invoked", "client_id", clientId, "data_size", len(dataVec))
 
@@ -96,6 +99,9 @@ func DataCallback(clientId ipc.ClientId, dataVec []byte, sendDataHandler SendDat
 	return &used
 }
 
+// RequestHandler 处理同步请求。它创建响应、设置
+// 超时上下文、通过请求路由器进行分发，并将响应
+// 发送回客户端。
 func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler SendDataHandler) {
 	common.LogDebug("RequestHandler", "client_id", clientId, "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
 
@@ -146,6 +152,9 @@ func RequestHandler(clientId ipc.ClientId, request *Request, sendDataHandler Sen
 	}
 }
 
+// RequestHandlerAsync 处理异步请求。它创建响应、通过请求路由器
+// 进行分发，并异步地将响应发送到调用者的
+// 异步 UUID。
 func RequestHandlerAsync(request *Request) {
 	defer ReleaseRequest(request)
 	common.LogDebug("RequestHandlerAsync", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
@@ -205,6 +214,9 @@ func RequestHandlerAsync(request *Request) {
 
 }
 
+// ResponseHandler 处理传入的异步响应。根据消息类型，
+// 通过响应路由器分发、执行已注册的回调、或
+// 解析等待中的 Future。
 func ResponseHandler(response *Response) {
 	common.LogDebug("ResponseHandler", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID(), "msg_type", int(response.GetMessageType()))
 

@@ -1,3 +1,7 @@
+// Package core implements the Tyke framework kernel.
+//
+// This file defines ResponseMetadata, which extends MetadataBase with status/reason
+// fields and JSON serialization for response messages.
 package core
 
 import (
@@ -6,12 +10,15 @@ import (
 	"tyke-go/common"
 )
 
+// ResponseMetadata holds the metadata fields for an outgoing response, including
+// status code and reason string.
 type ResponseMetadata struct {
 	MetadataBase
 	Status int    `json:"status"`
 	Reason string `json:"reason"`
 }
 
+// NewResponseMetadata creates a new ResponseMetadata with an initialized MetadataBase.
 func NewResponseMetadata() ResponseMetadata {
 	return ResponseMetadata{MetadataBase: NewMetadataBase()}
 }
@@ -79,6 +86,7 @@ func (r *ResponseMetadata) SetReason(reason string) *ResponseMetadata {
 	return r
 }
 
+// ResponseMetadataKnownKeys lists the JSON keys that are reserved for known fields.
 var ResponseMetadataKnownKeys = map[string]bool{
 	"module": true, "async_uuid": true, "msg_uuid": true, "route": true,
 	"content_type": true, "timestamp": true, "timeout": true, "status": true, "reason": true,

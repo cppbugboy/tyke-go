@@ -6,6 +6,9 @@ import (
 	"tyke-go/common"
 )
 
+// DispatchRequest 在全局 RequestRouter 中查找请求的路由并执行
+// 处理器链（过滤器 -> 处理器 -> 反向过滤器）。如果没有匹配的路由，
+// 则将响应设置为 StatusRouteError。
 func DispatchRequest(request *Request, response *Response) {
 	start := time.Now()
 	common.LogDebug("Dispatching request", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID())
@@ -39,6 +42,9 @@ func DispatchRequest(request *Request, response *Response) {
 	common.LogInfo("Request dispatched", "route", request.GetRoute(), "msg_uuid", request.GetMsgUUID(), "elapsed", elapsed)
 }
 
+// DispatchResponse 在全局 ResponseRouter 中查找响应的路由并执行
+// 处理器链。如果没有匹配的路由，则在丢弃响应之前
+// 回退检查请求存根表（func 回调和 Future）。
 func DispatchResponse(response *Response) {
 	common.LogDebug("Dispatching response", "route", response.GetRoute(), "msg_uuid", response.GetMsgUUID())
 

@@ -1,5 +1,8 @@
 //go:build linux
 
+// Package ipc provides a Linux platform implementation using Unix domain sockets
+// (abstract namespace). Implements ClientConnection and Server interfaces defined
+// in ipc_internal_platform.go.
 package ipc
 
 import (

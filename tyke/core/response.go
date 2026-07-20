@@ -8,8 +8,11 @@ import (
 	"tyke-go/ipc"
 )
 
+// SendDataHandler 是 Response 用于将编码后的数据发送回 IPC 客户端的回调。
 type SendDataHandler func(clientId ipc.ClientId, data []byte) bool
 
+// Response 表示一个 IPC 响应。它支持同步回复（通过 Send）
+// 和异步回复（通过 SendAsync）。实例使用对象池管理。
 type Response struct {
 	protocolHeader  common.ProtocolHeader
 	metadata        ResponseMetadata
@@ -32,10 +35,12 @@ func init() {
 	})
 }
 
+// AcquireResponse 从对象池中获取一个 Response。
 func AcquireResponse() *Response {
 	return responsePool.Acquire()
 }
 
+// ReleaseResponse 重置 Response 并将其归还到对象池。
 func ReleaseResponse(resp *Response) {
 	if resp != nil {
 		common.LogDebug("Releasing response object to pool", "msg_uuid", resp.GetMsgUUID())
@@ -44,6 +49,7 @@ func ReleaseResponse(resp *Response) {
 	}
 }
 
+// Reset 将 Response 重置为零值状态以供对象池复用。
 func (r *Response) Reset() {
 	r.protocolHeader = common.ProtocolHeader{Magic: common.ProtocolMagic}
 	r.metadata = NewResponseMetadata()
@@ -143,6 +149,8 @@ func (r *Response) IsSent() bool {
 	return r.isSend.Load()
 }
 
+// Send 使用配置的 sendDataHandler 同步地将响应发送回原始客户端。
+// 如果响应已发送过或编码/传输失败则返回错误。
 func (r *Response) Send() common.BoolResult {
 	common.LogDebug("Send", "route", r.GetRoute(), "msg_uuid", r.GetMsgUUID())
 	if !r.isSend.CompareAndSwap(false, true) {
@@ -170,6 +178,8 @@ func (r *Response) Send() common.BoolResult {
 	return common.OkBool(true)
 }
 
+// SendAsync 通过 IPC 异步地将响应发送到异步 UUID。
+// 用于发后即忘的异步响应模式。
 func (r *Response) SendAsync() common.BoolResult {
 	common.LogDebug("SendAsync", "route", r.GetRoute(), "msg_uuid", r.GetMsgUUID(), "asyncUuid", r.metadata.AsyncUUID)
 	if !r.isSend.CompareAndSwap(false, true) {

@@ -1,3 +1,7 @@
+// Package ipc 提供进程间通信层。
+//
+// 本文件定义了 ConnectionPool，一个按服务器 UUID 管理可重用 IPC 连接的池，
+// 具备空闲清理、连接数限制和获取/释放生命周期管理。
 package ipc
 
 import (
@@ -9,6 +13,7 @@ import (
 	"tyke-go/common"
 )
 
+// ConnectionPoolConfig 保存 ConnectionPool 的配置参数。
 type ConnectionPoolConfig struct {
 	MaxConnections     int
 	MinIdleConnections int
@@ -18,6 +23,7 @@ type ConnectionPoolConfig struct {
 	AcquireTimeoutMs   uint32
 }
 
+// DefaultConnectionPoolConfig 返回一个具有合理默认值的 ConnectionPoolConfig。
 func DefaultConnectionPoolConfig() ConnectionPoolConfig {
 	return ConnectionPoolConfig{
 		MaxConnections:     IPCDefaultMaxConnections,
@@ -29,6 +35,8 @@ func DefaultConnectionPoolConfig() ConnectionPoolConfig {
 	}
 }
 
+// ConnectionPool 管理单个服务器 UUID 的可重用 IPC 连接池。
+// 支持延迟创建、空闲超时清理以及可配置的最大/最小连接数。
 type ConnectionPool struct {
 	serverUuid       string
 	config           ConnectionPoolConfig
@@ -42,6 +50,8 @@ type ConnectionPool struct {
 	stopped          atomic.Bool
 }
 
+// NewConnectionPool 为指定的服务器 UUID 创建一个新的 ConnectionPool 并启动
+// 后台清理循环。
 func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *ConnectionPool {
 	p := &ConnectionPool{
 		serverUuid: serverUuid,
@@ -58,6 +68,8 @@ func NewConnectionPool(serverUuid string, config ConnectionPoolConfig) *Connecti
 	return p
 }
 
+// Acquire 从池中获取一个连接，可以是空闲的或新建的连接。
+// 如果池已达容量上限且没有可用连接，则带超时阻塞等待。
 func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 	p.mu.Lock()
 
@@ -158,6 +170,8 @@ func (p *ConnectionPool) Acquire() (*IPCConnection, error) {
 	}
 }
 
+// Release 将连接归还到池中。如果 shouldReconnect 为 true 或连接无效，
+// 则直接关闭连接而不是将其归还到空闲列表。
 func (p *ConnectionPool) Release(conn *IPCConnection, shouldReconnect bool) {
 	if conn == nil {
 		return
@@ -206,6 +220,7 @@ func (p *ConnectionPool) GetServerUuid() string {
 	return p.serverUuid
 }
 
+// Stop 关闭连接池，停止清理循环，并关闭所有空闲连接。
 func (p *ConnectionPool) Stop() {
 	if !p.stopped.CompareAndSwap(false, true) {
 		return

@@ -1,3 +1,12 @@
+// Package main 提供了一个演示用的 Tyke 客户端。
+//
+// 本示例启动一个 Tyke IPC 客户端，并演示所有四种 IPC 发送模式：
+//   - 同步发送 (Send)：阻塞直到服务器响应
+//   - 异步发送 (SendAsync)：发后即忘；响应通过 ResponseRouter 路由
+//   - 带回调的异步发送 (SendAsyncWithFunc)：收到响应时调用回调函数
+//   - 带 Future 的异步发送 (SendAsyncWithFuture)：返回一个可轮询的 Future
+//
+// 每种模式向示例服务器发送一个请求并打印结果。
 package main
 
 import (
@@ -13,10 +22,13 @@ import (
 )
 
 const (
-	serverUuid         = "1879b1d8-8ab0-4542-8421-8d845eca6587"
+	// serverUuid 是示例服务器监听的众所周知的 UUID。
+	serverUuid = "1879b1d8-8ab0-4542-8421-8d845eca6587"
+	// clientListenerUuid 是此客户端用于监听异步响应的 UUID。
 	clientListenerUuid = "c6ea2fe2-a1d0-4b90-a739-ce78cdaf7b6e"
 )
 
+// printRequestHeader 将格式化的请求摘要打印到标准输出。
 func printRequestHeader(title string, targetUuid string, request *core.Request) {
 	now := time.Now()
 	fmt.Printf("\n========================================\n")
@@ -40,6 +52,7 @@ func printRequestHeader(title string, targetUuid string, request *core.Request) 
 	}
 }
 
+// printSyncResponse 将格式化的同步响应打印到标准输出。
 func printSyncResponse(response *core.Response) {
 	now := time.Now()
 	status, reason := response.GetResult()
@@ -62,6 +75,7 @@ func printSyncResponse(response *core.Response) {
 	fmt.Printf("========================================\n")
 }
 
+// printAsyncResponse 将格式化的异步响应打印到标准输出。
 func printAsyncResponse(response *core.Response, methodName string) {
 	now := time.Now()
 	status, reason := response.GetResult()
@@ -87,8 +101,10 @@ func printAsyncResponse(response *core.Response, methodName string) {
 	fmt.Printf("========================================\n")
 }
 
+// demoSyncRequest 演示通过 Request.Send 发送同步请求。
+// 调用会阻塞直到服务器发送响应或超时到期。
 func demoSyncRequest() {
-	fmt.Println("\n>>> 1. 同步请求示例 (Send)")
+	fmt.Println("\n>>> 1. Sync Request Demo (Send)")
 
 	request := core.AcquireRequest()
 	defer core.ReleaseRequest(request)
@@ -117,8 +133,10 @@ func demoSyncRequest() {
 	}
 }
 
+// demoSendAsync 演示通过 Request.SendAsync 发送发后即忘的异步请求。
+// 响应由服务器的 ResponseRouter 分发到已注册的响应处理器。
 func demoSendAsync() {
-	fmt.Println("\n>>> 2. 异步请求示例 - SendAsync (即发即弃)")
+	fmt.Println("\n>>> 2. Async Request Demo - SendAsync (fire-and-forget)")
 
 	request := core.AcquireRequest()
 	defer core.ReleaseRequest(request)
@@ -144,8 +162,10 @@ func demoSendAsync() {
 	}
 }
 
+// demoSendAsyncWithFunc 演示带回调函数的异步请求。
+// 提供的回调函数在服务器发送响应时被调用。
 func demoSendAsyncWithFunc() {
-	fmt.Println("\n>>> 3. 异步请求示例 - SendAsyncWithFunc (回调函数)")
+	fmt.Println("\n>>> 3. Async Request Demo - SendAsyncWithFunc (callback)")
 
 	request := core.AcquireRequest()
 	defer core.ReleaseRequest(request)
@@ -174,8 +194,10 @@ func demoSendAsyncWithFunc() {
 	}
 }
 
+// demoSendAsyncWithFuture 演示带 Future/Promise 的异步请求。
+// 返回的 ResponseFuture 可用于阻塞等待直到响应到达。
 func demoSendAsyncWithFuture() {
-	fmt.Println("\n>>> 4. 异步请求示例 - SendAsyncWithFuture (Future/Promise)")
+	fmt.Println("\n>>> 4. Async Request Demo - SendAsyncWithFuture (Future/Promise)")
 
 	request := core.AcquireRequest()
 	defer core.ReleaseRequest(request)
