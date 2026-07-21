@@ -357,7 +357,7 @@ root.AddSubGroup("/api/admin").
 - **分片**: 超过 64 KB 的消息按 64 KB 分片，每片带 8 字节分片头
 - **最大载荷**: 每帧 16 MB
 
-该协议与 [C++ 实现](../tyke-cpp/README.md) 共享，支持跨语言 IPC 通信。
+该协议与 [C++ 实现](https://github.com/cppbugboy/tyke-cpp) 共享，支持跨语言 IPC 通信。
 
 ---
 
