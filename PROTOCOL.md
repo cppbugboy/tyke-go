@@ -1,143 +1,142 @@
-# Tyke IPC Protocol Specification v1
+# Tyke IPC 协议规范 v1
 
-This document is the **single source of truth** for the Tyke IPC protocol.
-Both the C++ and Go implementations **must** conform to the values defined here.
+本文档是 Tyke IPC 协议的**唯一权威定义**。C++ 和 Go 两种实现**必须**严格遵守此处定义的数值与格式。
 
 ---
 
-## 1. Protocol Header
+## 1. 协议头部
 
 ```
-Offset  Size  Field          Type        Description
-------  ----  -------------  ----------  -------------------------------------------
-0x00    4     magic          byte[4]     Fixed value: {'T','Y','K','E'} (0x54594B45)
-0x04    4     msg_type       uint32_le   MessageType enum value
-0x08    12    reserved       uint32[3]   Reserved, must be zero
-0x14    4     metadata_len   uint32_le   Length of the metadata JSON section (bytes)
-0x18    4     content_len    uint32_le   Length of the binary content section (bytes)
-------  ----  -------------  ----------  -------------------------------------------
-Total:  28 bytes
+偏移    大小    字段            类型        说明
+------  ------  -------------  ----------  -------------------------------------------
+0x00    4       魔数            byte[4]     固定值: {'T','Y','K','E'} (0x54594B45)
+0x04    4       消息类型        uint32_le   消息类型枚举值
+0x08    12      保留字段        uint32[3]   保留，必须为零
+0x14    4       元数据长度      uint32_le   元数据 JSON 段的字节长度
+0x18    4       内容长度        uint32_le   二进制内容段的字节长度
+------  ------  -------------  ----------  -------------------------------------------
+总计:   28 字节
 ```
 
-Wire format: `[ProtocolHeader 28B][Metadata JSON metadata_len B][Content Binary content_len B]`
+传输格式: `[协议头 28B][元数据 JSON (metadata_len B)][内容二进制 (content_len B)]`
 
-All multi-byte integers are **little-endian**.
+所有多字节整数均为**小端序**。
 
-## 2. Message Types
+## 2. 消息类型
 
-| Name                       | Value | Description                              |
-| -------------------------- | ----- | ---------------------------------------- |
-| NONE                       | 0     | Uninitialized / invalid                  |
-| REQUEST                    | 1     | Synchronous request                      |
-| REQUEST_ASYNC              | 2     | Async request (fire-and-forget)          |
-| REQUEST_ASYNC_FUNC         | 3     | Async request with callback              |
-| REQUEST_ASYNC_FUTURE       | 4     | Async request with future/promise        |
-| RESPONSE                   | 5     | Synchronous response                     |
-| RESPONSE_ASYNC             | 6     | Async response (fire-and-forget)         |
-| RESPONSE_ASYNC_FUNC        | 7     | Async response for callback              |
-| RESPONSE_ASYNC_FUTURE      | 8     | Async response for future/promise        |
+| 名称                       | 值   | 说明                       |
+| -------------------------- | ---- | -------------------------- |
+| 无类型                     | 0    | 未初始化 / 无效             |
+| 同步请求                   | 1    | 同步请求，阻塞等待响应       |
+| 异步请求(即发即弃)         | 2    | 异步请求，不等待响应         |
+| 异步请求(回调模式)         | 3    | 异步请求，通过回调函数接收响应 |
+| 异步请求(Future模式)       | 4    | 异步请求，通过 Future 接收响应 |
+| 同步响应                   | 5    | 同步请求的响应               |
+| 异步响应(即发即弃)         | 6    | 异步请求的响应               |
+| 异步响应(回调模式)         | 7    | 回调模式的异步响应           |
+| 异步响应(Future模式)       | 8    | Future 模式的异步响应        |
 
-## 3. Status Codes
+## 3. 状态码
 
-| Name             | Value | Description          |
-| ---------------- | ----- | -------------------- |
-| NONE             | 0     | No status            |
-| SUCCESS          | 1     | Operation succeeded  |
-| FAILURE          | 2     | General failure      |
-| TIMEOUT          | 3     | Operation timed out  |
-| METADATA_ERROR   | 4     | Metadata error       |
-| CONTENT_ERROR    | 5     | Content error        |
-| ROUTE_ERROR      | 6     | Route not found      |
-| MODULE_ERROR     | 7     | Module not supported |
-| INTERNAL_ERROR   | 8     | Internal error       |
-| UNAVAILABLE      | 9     | Service unavailable  |
-| UNKNOWN_ERROR    | 10    | Unknown error        |
+| 名称           | 值   | 说明           |
+| -------------- | ---- | -------------- |
+| 无状态         | 0    | 初始状态       |
+| 成功           | 1    | 操作成功       |
+| 失败           | 2    | 通用错误       |
+| 超时           | 3    | 操作超时       |
+| 元数据错误     | 4    | 元数据解析错误 |
+| 内容错误       | 5    | 内容数据错误   |
+| 路由错误       | 6    | 路由未找到     |
+| 模块错误       | 7    | 模块不支持     |
+| 内部错误       | 8    | 内部错误       |
+| 服务不可用     | 9    | 服务不可用     |
+| 未知错误       | 10   | 未知错误       |
 
-## 4. Content Types
+## 4. 内容类型
 
-| Name   | String Value | Enum Index |
-| ------ | ------------ | ---------- |
-| TEXT   | "text"       | 0          |
-| JSON   | "json"       | 1          |
-| BINARY | "binary"     | 2          |
+| 名称       | 字符串值   | 枚举索引 |
+| ---------- | ---------- | -------- |
+| 文本       | "text"     | 0        |
+| JSON       | "json"     | 1        |
+| 二进制     | "binary"   | 2        |
 
-## 5. Frame Format (Transport Layer)
-
-```
-Offset  Size           Field       Type        Description
-------  -------------  ----------  ----------  -------------------------------------------
-0x00    4              total_len   uint32_le   1 + len(payload)
-0x04    1              frame_type  uint8       Data(0x03) / DataFragment(0x04)
-0x05    total_len - 1  payload     byte[]      Frame payload (plaintext)
-------  -------------  ----------  ----------  -------------------------------------------
-```
-
-Max frame payload: **16 MiB** (16777216 bytes)
-
-### Frame Types
-
-| Name          | Value | Description                                           |
-| ------------- | ----- | ----------------------------------------------------- |
-| DATA          | 0x03  | Plaintext data                                        |
-| DATA_FRAGMENT | 0x04  | Fragmented data chunk (for messages > 64 KiB)         |
-
-### Fragment Format
-
-Messages larger than 64 KiB are automatically split into `DATA_FRAGMENT` frames. Each fragment frame's payload is structured as:
+## 5. 帧格式（传输层）
 
 ```
-[4B total_size (LE)][4B offset (LE)][chunk]
+偏移    大小              字段        类型        说明
+------  -----------------  ----------  ----------  -------------------------------------------
+0x00    4                 总长度       uint32_le   1 + 载荷长度
+0x04    1                 帧类型       uint8       数据帧(0x03) / 分片帧(0x04)
+0x05    总长度 - 1         载荷         byte[]      帧载荷（明文）
+------  -----------------  ----------  ----------  -------------------------------------------
 ```
 
-- `total_size`: Total size of the original message (bytes)
-- `offset`: Byte offset of this chunk within the original message
-- `chunk`: The fragment data bytes
+最大帧载荷: **16 MiB**（16777216 字节）
 
-The receiver reassembles all fragments into the original plaintext message before dispatching.
+### 帧类型
 
-## 6. Metadata JSON Fields
+| 名称       | 值     | 说明                              |
+| ---------- | ------ | --------------------------------- |
+| 数据帧     | 0x03   | 明文数据帧                         |
+| 分片帧     | 0x04   | 分片数据块（用于超大消息传输）       |
 
-| Key           | Type   | Description                          |
-| ------------- | ------ | ------------------------------------ |
-| module        | string | Module name                          |
-| route         | string | Route path (e.g., "/api/user/login") |
-| msg_uuid      | string | Message UUID (v4)                    |
-| async_uuid    | string | Async listener UUID                  |
-| content_type  | string | "text" / "json" / "binary"           |
-| timestamp     | string | ISO 8601 timestamp                   |
-| timeout       | uint64 | Timeout in milliseconds              |
-| status        | int    | Status code (response only)          |
-| reason        | string | Status reason (response only)        |
+### 分片载荷格式
 
-Additional keys are stored in a `headers` map and passed through as-is.
+单条消息超过 64 KiB 时，会自动分割为多个分片帧。每个分片帧的载荷结构为：
 
-## 7. IPC Transport
+```
+[4B 总大小 (小端序)][4B 偏移量 (小端序)][数据块]
+```
+
+- `总大小`: 原始消息的总字节数
+- `偏移量`: 当前数据块在原始消息中的字节偏移
+- `数据块`: 分片数据内容
+
+接收端按偏移量重组所有分片，当已接收字节数等于总大小时，交付完整消息。
+
+## 6. 元数据 JSON 字段
+
+| 键            | 类型       | 说明                               |
+| ------------- | ---------- | ---------------------------------- |
+| module        | 字符串     | 模块名称                           |
+| route         | 字符串     | 路由路径（例如 "/api/user/login"） |
+| msg_uuid      | 字符串     | 消息唯一标识 (UUID v4)             |
+| async_uuid    | 字符串     | 异步监听端 UUID                    |
+| content_type  | 字符串     | "text" / "json" / "binary"         |
+| timestamp     | 字符串     | ISO 8601 时间戳                    |
+| timeout       | 无符号整数 | 超时时间（毫秒）                    |
+| status        | 整数       | 状态码（仅响应消息使用）            |
+| reason        | 字符串     | 状态原因（仅响应消息使用）          |
+
+额外的自定义字段存储在 `headers` 映射中，原样透传。
+
+## 7. IPC 传输层
 
 ### Windows
-- **Transport**: Named Pipes (`\\.\pipe\<server_name>`)
-- **I/O Model**: Overlapped I/O (IOCP)
+- **传输方式**: 命名管道 (`\\.\pipe\<服务器名称>`)
+- **I/O 模型**: 重叠 I/O (IOCP)
 
 ### Linux
-- **Transport**: Unix Domain Sockets (abstract namespace `@tyke_<server_name>`)
-- **I/O Model**: epoll
+- **传输方式**: Unix 域套接字（抽象命名空间 `@tyke_<服务器名称>`）
+- **I/O 模型**: epoll
 
-## 8. Default Constants
+## 8. 默认常量
 
-| Constant                    | Value    |
-| --------------------------- | -------- |
-| Default Timeout             | 5000 ms  |
-| Default Buffer Size         | 4096 B   |
-| Default Thread Pool Size    | 4        |
-| Default Max Connections     | 4        |
-| Default Idle Timeout        | 30000 ms |
-| Default Stub Timeout        | 30000 ms |
-| Protocol Header Size        | 28 B     |
+| 常量               | 数值       |
+| ------------------ | ---------- |
+| 默认超时           | 5000 毫秒  |
+| 默认缓冲区大小     | 4096 字节  |
+| 默认线程池大小     | 4          |
+| 默认最大连接数     | 4          |
+| 默认空闲超时       | 30000 毫秒 |
+| 默认存根超时       | 30000 毫秒 |
+| 协议头部大小       | 28 字节    |
 
 ---
 
-## Change Log
+## 变更日志
 
-| Version | Date       | Changes                                                    |
-| ------- | ---------- | ---------------------------------------------------------- |
-| v1      | 2026-04-26 | Initial protocol specification                             |
-| v1.1    | 2026-06-29 | Migrated to plaintext data transport; data frames carry raw payload |
+| 版本  | 日期       | 变更内容                                                       |
+| ----- | ---------- | -------------------------------------------------------------- |
+| v1    | 2026-04-26 | 协议初始版本                                                    |
+| v1.1  | 2026-06-29 | 移除加密层（ECDH/AES-GCM），数据改为明文传输；移除握手帧；重新编号章节 |
