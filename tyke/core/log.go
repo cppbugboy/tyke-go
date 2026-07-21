@@ -123,7 +123,7 @@ func (t *LogConfig) Stop() {
 		if t.file != nil {
 			err := t.file.Close()
 			if err != nil {
-				return
+				common.LogError("Failed to close log file", "error", err)
 			}
 			t.file = nil
 		}

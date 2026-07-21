@@ -93,7 +93,7 @@ func (c *clientConnectionImplLinux) ReadLoop(callback ClientRecvDataCallback, ti
 	}
 	var rawBuf []byte
 	var plainBuf []byte
-	chunk := make([]byte, 131072)
+	chunk := make([]byte, 1048576) // 1MB，与 Windows 平台一致
 	for {
 		conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
 		n, err := conn.Read(chunk)
@@ -226,7 +226,7 @@ func (s *serverImplLinux) acceptLoop() {
 
 func (s *serverImplLinux) handleClient(cid ClientId, ctx *clientContextLinux) {
 	common.LogInfo("Server handling client connection", "client_id", cid)
-	chunk := make([]byte, 131072)
+	chunk := make([]byte, 1048576) // 1MB，与 Windows 平台一致
 	for s.running.Load() {
 		if ctx.conn != nil {
 			ctx.conn.SetReadDeadline(time.Now().Add(serverReadTimeout))

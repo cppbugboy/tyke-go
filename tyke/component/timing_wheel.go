@@ -73,6 +73,7 @@ const InvalidTimerId TimerId = 0
 // 注意：TimerTask 和 TaskEntry 是两个独立的追踪系统，分别用于不同的 API：
 //   - TaskEntry（基于槽位数组）：AddTask / RemoveTask（分层时间轮 O(1) 调度）
 //   - TimerTask（基于独立 goroutine）：AddTaskAt / AddRepeatedTask / CancelTask
+//
 // 两个系统的任务无法互查或互操作。未来的版本将统一为单一调度机制。
 type TimerTask struct {
 	Id          TimerId   // 唯一标识符
@@ -541,7 +542,7 @@ func (tw *TimingWheel) processExpiredTasks(tasks []TaskEntry) {
 				remaining = 1
 			}
 			levelIndex := tw.selectLevel(remaining)
-			slot := tw.calculateSlot(levelIndex, entry.TimeoutMs)
+			slot := tw.calculateSlot(levelIndex, remaining)
 			tw.levels[levelIndex].slots[slot] = append(tw.levels[levelIndex].slots[slot], entry)
 			tw.taskLocation[entry.Uuid] = taskLocationKey(levelIndex, slot)
 			continue

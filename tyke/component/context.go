@@ -602,7 +602,9 @@ func init() {
 // StdContext 将自定义 Context 适配为 Go 标准库的 context.Context 接口。
 // 这使得 Tyke Context 可以与接受 context.Context 的第三方库和标准库函数互操作。
 type StdContext struct {
-	ctx Context
+	ctx  Context
+	done chan struct{}
+	once sync.Once
 }
 
 // NewStdContext 从自定义 Context 创建一个标准 context.Context。
@@ -617,17 +619,20 @@ func (c *StdContext) Deadline() (time.Time, bool) {
 
 // Done 实现 context.Context.Done。
 // 返回一个在上下文被取消时关闭的通道。
+// 使用 sync.Once 确保只创建一次 goroutine 和 channel，防止重复调用时泄露 goroutine。
 func (c *StdContext) Done() <-chan struct{} {
-	done := make(chan struct{})
-	if c.ctx.IsDone() {
-		close(done)
-		return done
-	}
-	go func() {
-		c.ctx.Wait()
-		close(done)
-	}()
-	return done
+	c.once.Do(func() {
+		c.done = make(chan struct{})
+		if c.ctx.IsDone() {
+			close(c.done)
+			return
+		}
+		go func() {
+			c.ctx.Wait()
+			close(c.done)
+		}()
+	})
+	return c.done
 }
 
 // Err 实现 context.Context.Err。

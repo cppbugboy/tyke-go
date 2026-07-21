@@ -66,6 +66,7 @@ func RequestStubSetFuture(response *Response) {
 		case extractedCh <- response:
 		default:
 			common.LogWarn("Future channel full, dropping response", "uuid", response.GetMsgUUID())
+			ReleaseResponse(response)
 		}
 	}
 }
@@ -127,6 +128,7 @@ func RequestStubCleanupExpiredFuture(uuid string) {
 		case extractedCh <- timeoutResp:
 		default:
 			common.LogWarn("Future channel full on timeout, dropping", "uuid", uuid)
+			ReleaseResponse(timeoutResp)
 		}
 	}
 }
@@ -222,6 +224,7 @@ func RequestStubExecFuncOrSetFuture(response *Response) bool {
 		case extractedCh <- response:
 		default:
 			common.LogWarn("Fallback future channel full, dropping response", "uuid", uuid)
+			ReleaseResponse(response)
 		}
 		return true
 	}
