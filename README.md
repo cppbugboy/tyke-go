@@ -2,7 +2,7 @@
 
 **Tyke Go** 是一个高性能、跨平台的 Go 语言 IPC（进程间通信）框架。它提供了完整的客户端-服务端通信层，内置路由、过滤器、对象池和异步消息机制，专为 Windows 和 Linux 上的本地进程通信而设计。
 
-> 📘 Tyke 同时提供 [C++ 实现](../tyke-cpp/README.md)，两者共享相同的传输协议，支持跨语言 IPC 通信。
+> 📘 Tyke 同时提供 [C++ 实现](https://github.com/cppbugboy/tyke-cpp)，两者共享相同的传输协议，支持跨语言 IPC 通信。
 
 ---
 
