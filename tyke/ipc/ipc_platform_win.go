@@ -214,6 +214,8 @@ type clientContext struct {
 type serverImplWin struct {
 	serverName string
 	listener   net.Listener
+	pipePath   string
+	pipeCfg    *winio.PipeConfig
 	running    atomic.Bool
 	mu         sync.Mutex
 	clients    map[ClientId]*clientContext
@@ -230,13 +232,15 @@ func (s *serverImplWin) Start(serverName string, callback ServerRecvDataCallback
 		return common.ErrBool("server already running")
 	}
 	s.callback = callback
-	pipePath := `\\.\pipe\` + serverName
-	cfg := &winio.PipeConfig{
+	s.pipePath = `\\.\pipe\` + serverName
+	s.pipeCfg = &winio.PipeConfig{
 		MessageMode:      false,
-		InputBufferSize:  262144,
-		OutputBufferSize: 262144,
+		InputBufferSize:  4 * 1024 * 1024,
+		OutputBufferSize: 4 * 1024 * 1024,
 	}
-	listener, err := winio.ListenPipe(pipePath, cfg)
+
+	// Create initial pipe listener; acceptLoop will recreate after each accept
+	listener, err := winio.ListenPipe(s.pipePath, s.pipeCfg)
 	if err != nil {
 		return common.ErrBool("listen failed: " + err.Error())
 	}
@@ -256,6 +260,16 @@ func (s *serverImplWin) acceptLoop() {
 				return
 			}
 			continue
+		}
+
+		// Immediately recreate the listener so the next client can connect
+		// without waiting for this client's handler to start.
+		// This matches the C++ server behaviour which pre-creates pipe instances
+		// via CreateListeningPipe after each connection.
+		newListener, listenErr := winio.ListenPipe(s.pipePath, s.pipeCfg)
+		if listenErr == nil {
+			s.listener.Close()
+			s.listener = newListener
 		}
 		ctx := &clientContext{
 			conn: conn,
