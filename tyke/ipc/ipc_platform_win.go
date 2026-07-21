@@ -132,7 +132,7 @@ func (c *clientConnectionImplWin) ReadLoop(callback ClientRecvDataCallback, time
 	}
 	var rawBuf []byte
 	var plainBuf []byte
-	chunk := make([]byte, 131072)
+	chunk := make([]byte, 1048576) // 1MB
 	for {
 		conn.SetReadDeadline(time.Now().Add(time.Duration(timeoutMs) * time.Millisecond))
 		n, err := conn.Read(chunk)
@@ -270,7 +270,7 @@ func (s *serverImplWin) acceptLoop() {
 
 func (s *serverImplWin) handleClient(cid ClientId, ctx *clientContext) {
 	common.LogInfo("Server handling client connection", "client_id", cid)
-	chunk := make([]byte, 131072)
+	chunk := make([]byte, 1048576) // 1MB
 	for s.running.Load() {
 		if ctx.conn != nil {
 			ctx.conn.SetReadDeadline(time.Now().Add(serverReadTimeout))

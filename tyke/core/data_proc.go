@@ -146,8 +146,8 @@ func decode(dataVec []byte, msg decodable, dataSize *uint32) bool {
 	metaLen := ph.MetadataLen
 	contLen := ph.ContentLen
 
-	const maxMetadataLen uint32 = 4 * 1024 * 1024
-	const maxContentLen uint32 = 64 * 1024 * 1024
+	const maxMetadataLen uint32 = 256 * 1024     // 256KB
+	const maxContentLen uint32 = 1 * 1024 * 1024 // 1MB
 
 	if metaLen > maxMetadataLen {
 		common.LogError("Metadata length exceeds limit", "len", metaLen, "max", maxMetadataLen)

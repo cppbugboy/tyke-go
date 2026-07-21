@@ -9,11 +9,11 @@ const (
 	MsgData         byte = 0x03
 	MsgDataFragment byte = 0x04
 
-	MaxFramePayloadLen uint32 = 16 * 1024 * 1024
+	MaxFramePayloadLen uint32 = 1 * 1024 * 1024 // 1MB
 	FragmentChunkSize  uint32 = 64 * 1024
 	FragmentHeaderSize uint32 = 8
 	// MaxMessageSize 限制分片重组后的逻辑消息总大小，防止恶意 totalSize 触发 OOM。
-	MaxMessageSize uint32 = 64 * 1024 * 1024
+	MaxMessageSize uint32 = 1 * 1024 * 1024 // 1MB
 )
 
 // encodeU32 以小端序将 uint32 值追加到字节切片中。
